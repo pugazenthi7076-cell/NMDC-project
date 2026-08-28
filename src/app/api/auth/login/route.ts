@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user by ID
-    const user = findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return NextResponse.json({ error: "No account found with this User ID" }, { status: 404 });
     }
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Create session
     const ip = request.headers.get("x-forwarded-for") || "unknown";
-    const session = createSession(user.id, ip);
+    const session = await createSession(user.id, ip);
 
     if (!session) {
       return NextResponse.json({ error: "Maximum concurrent sessions reached" }, { status: 429 });
@@ -74,8 +74,9 @@ export async function POST(request: NextRequest) {
 
 // GET - Get active sessions count
 export async function GET() {
+  const activeSessions = await getActiveSessionCount();
   return NextResponse.json({
-    activeSessions: getActiveSessionCount(),
+    activeSessions,
     maxSessions: 15,
   });
 }

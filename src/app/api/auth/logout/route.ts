@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   if (sessionCookie) {
     try {
       const decoded = JSON.parse(Buffer.from(sessionCookie.value, "base64").toString());
-      deleteSession(decoded.sessionId);
+      await deleteSession(decoded.sessionId);
     } catch {
       // ignore
     }

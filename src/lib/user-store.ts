@@ -1,141 +1,157 @@
-// In-memory user store and session management
-// In production, use a database (PostgreSQL, MongoDB, etc.)
+// MongoDB-backed user store and session management
+// Replaces the in-memory Map-based store with persistent MongoDB storage
 
-import { UserProfile, SessionData, UserAccount } from "./types";
-
-// ===== USER STORE =====
-const users: Map<string, UserAccount> = new Map();
-
-// ID counters
-let adminCounter = 0;
-let workerCounter = 0;
-
-// Initialize default admin
-const defaultAdmin: UserAccount = {
-  id: "ADM-0001",
-  name: "Super Admin",
-  email: "admin@nmdc.in",
-  mobile: "9999999999",
-  role: "admin",
-  department: "System Administration",
-  designation: "System Administrator",
-  sectionHead: "Director - IT",
-  password: "admin@1",
-  createdAt: new Date().toISOString(),
-  isActive: true,
-};
-users.set(defaultAdmin.id, defaultAdmin);
-adminCounter = 1;
+import connectDB from "./mongodb";
+import { User, Session, IUserDocument, ISessionDocument } from "./models";
+import { UserProfile, SessionData } from "./types";
 
 // ===== USER FUNCTIONS =====
 
-export function generateUserId(role: "admin" | "worker"): string {
-  if (role === "admin") {
-    adminCounter++;
-    return `ADM-${String(adminCounter).padStart(4, "0")}`;
-  } else {
-    workerCounter++;
-    return `WKR-${String(workerCounter).padStart(4, "0")}`;
-  }
+export async function generateUserId(role: "admin" | "worker"): Promise<string> {
+  await connectDB();
+  const prefix = role === "admin" ? "ADM" : "WKR";
+  const count = await User.countDocuments({ role });
+  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
 }
 
-export function createUser(data: Omit<UserAccount, "id" | "createdAt" | "isActive">): UserAccount {
-  const id = generateUserId(data.role);
-  const user: UserAccount = {
+export async function createUser(data: {
+  name: string;
+  email: string;
+  mobile: string;
+  role: "admin" | "worker";
+  department: string;
+  designation: string;
+  sectionHead: string;
+  password: string;
+}): Promise<IUserDocument> {
+  await connectDB();
+  const id = await generateUserId(data.role);
+  const user = await User.create({
     ...data,
     id,
     createdAt: new Date().toISOString(),
     isActive: true,
-  };
-  users.set(id, user);
+  });
   return user;
 }
 
-export function findUserById(id: string): UserAccount | undefined {
-  return users.get(id);
+export async function findUserById(id: string): Promise<IUserDocument | null> {
+  await connectDB();
+  return User.findOne({ id });
 }
 
-export function findUserByMobile(mobile: string): UserAccount | undefined {
-  for (const user of users.values()) {
-    if (user.mobile === mobile) return user;
-  }
-  return undefined;
+export async function findUserByMobile(mobile: string): Promise<IUserDocument | null> {
+  await connectDB();
+  return User.findOne({ mobile });
 }
 
-export function findUserByEmail(email: string): UserAccount | undefined {
-  for (const user of users.values()) {
-    if (user.email === email) return user;
-  }
-  return undefined;
+export async function findUserByEmail(email: string): Promise<IUserDocument | null> {
+  await connectDB();
+  return User.findOne({ email });
 }
 
-export function findUserByMobileAndId(mobile: string, id: string): UserAccount | undefined {
-  for (const user of users.values()) {
-    if (user.mobile === mobile && user.id === id) return user;
-  }
-  return undefined;
+export async function findUserByMobileAndId(mobile: string, id: string): Promise<IUserDocument | null> {
+  await connectDB();
+  return User.findOne({ mobile, id });
 }
 
-export function getAllUsers(): UserProfile[] {
-  return Array.from(users.values()).map(({ password, ...rest }) => rest);
+export async function getAllUsers(): Promise<UserProfile[]> {
+  await connectDB();
+  const users = await User.find({}, { password: 0 });
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    mobile: u.mobile,
+    role: u.role,
+    department: u.department,
+    designation: u.designation,
+    sectionHead: u.sectionHead,
+    createdAt: u.createdAt,
+    isActive: u.isActive,
+  }));
 }
 
-export function getUsersByRole(role: "admin" | "worker"): UserProfile[] {
-  return Array.from(users.values())
-    .filter((u) => u.role === role)
-    .map(({ password, ...rest }) => rest);
+export async function getUsersByRole(role: "admin" | "worker"): Promise<UserProfile[]> {
+  await connectDB();
+  const users = await User.find({ role }, { password: 0 });
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    mobile: u.mobile,
+    role: u.role,
+    department: u.department,
+    designation: u.designation,
+    sectionHead: u.sectionHead,
+    createdAt: u.createdAt,
+    isActive: u.isActive,
+  }));
 }
 
-export function updateUserPassword(userId: string, newPassword: string): boolean {
-  const user = users.get(userId);
-  if (!user) return false;
-  user.password = newPassword;
-  users.set(userId, user);
-  return true;
+export async function updateUserPassword(userId: string, newPassword: string): Promise<boolean> {
+  await connectDB();
+  const result = await User.updateOne({ id: userId }, { password: newPassword });
+  return result.modifiedCount > 0;
 }
 
 // ===== SESSION STORE =====
-const sessions: Map<string, SessionData> = new Map();
+
 const MAX_GLOBAL_SESSIONS = 15;
 
-export function createSession(userId: string, ip: string): SessionData | null {
-  // Cleanup expired
-  const now = Date.now();
-  for (const [id, s] of sessions) {
-    if (now > s.expiry) sessions.delete(id);
-  }
+export async function createSession(userId: string, ip: string): Promise<SessionData | null> {
+  await connectDB();
 
-  if (sessions.size >= MAX_GLOBAL_SESSIONS) return null;
+  // Cleanup expired sessions
+  await Session.deleteMany({ expiry: { $lt: Date.now() } });
+
+  // Check global session limit
+  const activeCount = await Session.countDocuments();
+  if (activeCount >= MAX_GLOBAL_SESSIONS) return null;
 
   const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const session: SessionData = {
+  const session = await Session.create({
     sessionId,
     userId,
-    loginTime: now,
-    expiry: now + 24 * 60 * 60 * 1000,
+    loginTime: Date.now(),
+    expiry: Date.now() + 24 * 60 * 60 * 1000,
     ip,
+  });
+
+  return {
+    sessionId: session.sessionId,
+    userId: session.userId,
+    loginTime: session.loginTime,
+    expiry: session.expiry,
+    ip: session.ip,
   };
-  sessions.set(sessionId, session);
-  return session;
 }
 
-export function getSession(sessionId: string): SessionData | undefined {
-  const s = sessions.get(sessionId);
-  if (s && Date.now() > s.expiry) {
-    sessions.delete(sessionId);
-    return undefined;
+export async function getSession(sessionId: string): Promise<SessionData | null> {
+  await connectDB();
+  const s = await Session.findOne({ sessionId });
+  if (!s) return null;
+  if (Date.now() > s.expiry) {
+    await Session.deleteOne({ sessionId });
+    return null;
   }
-  return s;
+  return {
+    sessionId: s.sessionId,
+    userId: s.userId,
+    loginTime: s.loginTime,
+    expiry: s.expiry,
+    ip: s.ip,
+  };
 }
 
-export function deleteSession(sessionId: string): void {
-  sessions.delete(sessionId);
+export async function deleteSession(sessionId: string): Promise<void> {
+  await connectDB();
+  await Session.deleteOne({ sessionId });
 }
 
-export function getActiveSessionCount(): number {
-  const now = Date.now();
-  for (const [id, s] of sessions) {
-    if (now > s.expiry) sessions.delete(id);
-  }
-  return sessions.size;
+export async function getActiveSessionCount(): Promise<number> {
+  await connectDB();
+  // Cleanup expired
+  await Session.deleteMany({ expiry: { $lt: Date.now() } });
+  return Session.countDocuments();
 }

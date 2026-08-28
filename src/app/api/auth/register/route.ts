@@ -32,16 +32,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check duplicates
-    if (findUserByMobile(mobile)) {
+    const existingMobile = await findUserByMobile(mobile);
+    if (existingMobile) {
       return NextResponse.json({ error: "Mobile number already registered" }, { status: 409 });
     }
 
-    if (findUserByEmail(email)) {
+    const existingEmail = await findUserByEmail(email);
+    if (existingEmail) {
       return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
 
     // Create user
-    const user = createUser({
+    const user = await createUser({
       name,
       email,
       mobile,
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       password,
     });
 
-    const { password: _, ...userProfile } = user;
+    const { password: _, ...userProfile } = user.toObject();
 
     return NextResponse.json({
       success: true,

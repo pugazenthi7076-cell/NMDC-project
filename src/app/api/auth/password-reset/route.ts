@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
-    const user = findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return NextResponse.json({ error: "User not found with this ID" }, { status: 404 });
     }
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Account is deactivated. Contact administrator." }, { status: 403 });
     }
 
-    const updated = updateUserPassword(userId, newPassword);
+    const updated = await updateUserPassword(userId, newPassword);
     if (!updated) {
       return NextResponse.json({ error: "Failed to update password" }, { status: 500 });
     }

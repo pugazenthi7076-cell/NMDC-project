@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    // Verify session still exists
-    const session = getSession(decoded.sessionId);
+    // Verify session still exists in MongoDB
+    const session = await getSession(decoded.sessionId);
     if (!session) {
       const response = NextResponse.json(
         { authenticated: false, error: "Session invalidated" },
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get fresh user data
-    const user = findUserById(decoded.userId);
+    const user = await findUserById(decoded.userId);
 
     return NextResponse.json({
       authenticated: true,
