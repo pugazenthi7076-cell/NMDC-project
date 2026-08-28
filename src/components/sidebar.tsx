@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard, Activity, ScanLine, Cog, BarChart3, Bell,
-  Settings, LogOut, Shield, ChevronLeft, ChevronRight, Users,
+  Settings, LogOut, Shield, ChevronLeft, ChevronRight, Users, Brain,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { useState } from "react";
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/belt-monitoring", label: "Belt Monitoring", icon: Activity },
   { href: "/dashboard/damage-detection", label: "Damage Detection", icon: ScanLine },
+  { href: "/dashboard/ml-predictions", label: "ML Predictions", icon: Brain },
   { href: "/dashboard/predictive-maintenance", label: "Predictions", icon: Cog },
   { href: "/dashboard/thermal-analysis", label: "Analysis", icon: BarChart3 },
   { href: "/dashboard/alerts", label: "Alerts", icon: Bell },

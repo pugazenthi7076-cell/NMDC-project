@@ -1,0 +1,11 @@
+{
+  "trained_at": "2026-08-28T23:27:41.545323",
+  "samples": 2000,
+  "models": {
+    "xgboost_failure": 91.5,
+    "rf_damage": 24.4,
+    "xgboost_health": 7.68,
+    "rf_remaining_life": 2.4,
+    "rf_severity": 39.8
+  }
+}
