@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NMDC Analyzer - Conveyor Belt Monitoring",
+  title: "Industrial Belt Monitoring",
   description: "Intelligent Monitoring and Prediction of Conveyor Belt Joint Rupture and Damages in Iron Ore Mining Industry",
 };
 

@@ -53,7 +53,7 @@ export default function LoginPage() {
           <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-[var(--primary)] flex items-center justify-center shadow-lg shadow-[var(--primary)]/20">
             <Shield className="w-12 h-12 text-[var(--primary-foreground)]" />
           </div>
-          <h1 className="text-3xl font-bold text-[var(--foreground)]">NMDC Analyzer</h1>
+          <h1 className="text-3xl font-bold text-[var(--foreground)]">Industrial Belt Monitoring</h1>
           <p className="text-[var(--muted-foreground)] mt-2 text-sm">Conveyor Belt Monitoring System</p>
           <p className="text-[var(--muted-foreground)] text-xs mt-1">Smart India Hackathon 2026 | Spidy Hackers</p>
         </div>

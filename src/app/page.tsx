@@ -21,7 +21,7 @@ export default function Home() {
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--primary)] flex items-center justify-center">
           <Shield className="w-10 h-10 text-[var(--primary-foreground)]" />
         </div>
-        <h1 className="text-2xl font-bold text-[var(--primary)]">NMDC Analyzer</h1>
+        <h1 className="text-2xl font-bold text-[var(--primary)]">Industrial Belt Monitoring</h1>
         <p className="text-[var(--muted-foreground)] mt-2">Loading...</p>
       </div>
     </div>

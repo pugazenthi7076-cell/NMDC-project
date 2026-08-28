@@ -39,8 +39,8 @@ export default function Sidebar() {
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className="text-sm font-bold text-[var(--primary)] tracking-wider">NMDC</h1>
-            <p className="text-[10px] text-[var(--muted-foreground)] tracking-widest uppercase">Analyzer</p>
+            <h1 className="text-sm font-bold text-[var(--primary)] tracking-wider">Industrial</h1>
+            <p className="text-[10px] text-[var(--muted-foreground)] tracking-widest uppercase">Belt Monitoring</p>
           </div>
         )}
         <button onClick={() => setCollapsed(!collapsed)} className="ml-auto p-1 rounded hover:bg-[var(--sidebar-hover)] text-[var(--muted-foreground)]">

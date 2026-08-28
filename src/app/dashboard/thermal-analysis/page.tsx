@@ -455,9 +455,9 @@ export default function AnalysisPage() {
       </tr>
     `).join("");
 
-    const html = `<!DOCTYPE html><html><head><title>NMDC Analysis Report</title>
+    const html = `<!DOCTYPE html><html><head><title>Industrial Belt Analysis Report</title>
     <style>body{font-family:Arial,sans-serif;padding:20px;color:#1f2937}h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;color:#6b7280;margin-top:0}.meta{font-size:11px;color:#9ca3af;margin-bottom:16px}.stats{display:flex;gap:16px;margin-bottom:16px}.stat-box{border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;text-align:center}.stat-box .value{font-size:20px;font-weight:700}.stat-box .label{font-size:10px;color:#6b7280;text-transform:uppercase}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f9fafb;padding:8px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280;border-bottom:2px solid #e5e7eb}.footer{margin-top:20px;font-size:10px;color:#9ca3af;text-align:center;border-top:1px solid #e5e7eb;padding-top:10px}</style></head><body>
-    <h1>NMDC Conveyor Belt Analysis Report</h1><h2>${catLabel} — SIH26008</h2>
+    <h1>Industrial Belt Analysis Report</h1><h2>${catLabel} — SIH26008</h2>
     <p class="meta">Generated: ${now} | Records: ${filtered.length}</p>
     <div class="stats">
       <div class="stat-box"><div class="value">${stats.total}</div><div class="label">Total</div></div>
@@ -466,7 +466,7 @@ export default function AnalysisPage() {
       <div class="stat-box"><div class="value" style="color:#dc2626">${stats.critical}</div><div class="label">Critical</div></div>
     </div>
     <table><thead><tr><th>ID</th><th>Belt</th><th>Category</th><th>Component</th><th>Value</th><th>Threshold</th><th>Status</th><th>Severity</th><th>Details</th><th>Recommendation</th><th>Time</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="footer">NMDC Analyzer — Smart India Hackathon 2026 | Spidy Hackers | SIH26008 | Confidential</div></body></html>`;
+    <div class="footer">Industrial Belt Monitoring — Smart India Hackathon 2026 | Spidy Hackers | SIH26008 | Confidential</div></body></html>`;
 
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }

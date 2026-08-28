@@ -93,7 +93,7 @@ export default function RegisterPage() {
             <Shield className="w-10 h-10 text-[var(--primary-foreground)]" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Create Account</h1>
-          <p className="text-[var(--muted-foreground)] text-sm mt-1">NMDC Conveyor Belt Monitoring System</p>
+          <p className="text-[var(--muted-foreground)] text-sm mt-1">Industrial Belt Monitoring System</p>
         </div>
 
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-xl">

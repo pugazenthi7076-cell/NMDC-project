@@ -66,7 +66,7 @@ export default function DashboardPage() {
             Dashboard Overview
           </h1>
           <p className="text-[var(--muted-foreground)] text-sm mt-1">
-            NMDC Conveyor Belt Monitoring System | Real-time Intelligence
+            Industrial Belt Monitoring System | Real-time Intelligence
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg">

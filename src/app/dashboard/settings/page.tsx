@@ -194,7 +194,7 @@ export default function SettingsPage() {
         </h3>
         <div className="space-y-2">
           {[
-            { label: "Application", value: "NMDC Analyzer v1.0.0" },
+            { label: "Application", value: "Industrial Belt Monitoring v1.0.0" },
             { label: "Problem Statement", value: "SIH26008" },
             { label: "Theme", value: "Smart Automation" },
             { label: "Team", value: "Spidy Hackers" },
