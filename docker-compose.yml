@@ -33,6 +33,11 @@ services:
       - ml_models:/app/ml-service/trained_models
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
+      - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
       - PYTHONUNBUFFERED=1
     depends_on:
       mongodb:
@@ -56,6 +61,8 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
       - ML_API_URL=http://ml-api:5001
+      - MQTT_BROKER=mqtt
+      - MINIO_ENDPOINT=minio:9000
       - NEXT_TELEMETRY_DISABLED=1
     depends_on:
       mongodb:
@@ -63,6 +70,43 @@ services:
       ml-api:
         condition: service_healthy
     restart: unless-stopped
+
+  # MQTT Broker (Mosquitto) for ESP32 sensor communication
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: nmdc-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mqtt_data:/mosquitto/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # MinIO Object Storage for images, reports, logs
+  minio:
+    image: minio/minio:latest
+    container_name: nmdc-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Grafana Dashboards
   grafana:
@@ -93,3 +137,5 @@ volumes:
   mongodb_data:
   ml_models:
   grafana_data:
+  mqtt_data:
+  minio_data:

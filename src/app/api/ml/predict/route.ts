@@ -7,7 +7,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { endpoint = "full", ...payload } = body;
 
-    // Route to different ML endpoints based on the endpoint param
     const endpointMap: Record<string, string> = {
       full: "/predict/full",
       failure: "/predict/failure",
@@ -22,6 +21,15 @@ export async function POST(request: NextRequest) {
       correlate: "/fusion/correlate",
       alerts: "/alerts/check",
       "full-analysis": "/analyze/full",
+      // MQTT
+      "mqtt-connect": "/mqtt/connect",
+      "mqtt-publish": "/mqtt/publish",
+      "mqtt-simulate": "/mqtt/simulate",
+      // MinIO
+      "minio-connect": "/minio/connect",
+      "minio-upload-image": "/minio/upload/image",
+      "minio-upload-detection": "/minio/upload/detection",
+      "minio-upload-report": "/minio/upload/report",
     };
 
     const mlPath = endpointMap[endpoint] || `/predict/${endpoint}`;

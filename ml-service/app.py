@@ -23,6 +23,8 @@ from modules.deep_learning import (
 )
 from modules.sensor_fusion import SensorFusionEngine, fusion_engine
 from modules.alerts import alert_manager
+from modules.mqtt_client import mqtt_manager
+from modules.minio_storage import minio_storage
 
 app = Flask(__name__)
 CORS(app)
@@ -344,7 +346,158 @@ def alert_stats():
 
 
 # ============================================================
-# COMPREHENSIVE BELL ANALYSIS (combines everything)
+# MQTT - REAL-TIME SENSOR COMMUNICATION
+# ============================================================
+@app.route("/mqtt/status", methods=["GET"])
+def mqtt_status():
+    """Get MQTT connection status and sensor data."""
+    return jsonify({"mqtt": mqtt_manager.get_stats()})
+
+
+@app.route("/mqtt/connect", methods=["POST"])
+def mqtt_connect():
+    """Connect to MQTT broker."""
+    data = request.json or {}
+    mqtt_manager.broker_host = data.get("broker", mqtt_manager.broker_host)
+    mqtt_manager.broker_port = data.get("port", mqtt_manager.broker_port)
+    result = mqtt_manager.connect()
+    return jsonify({"connected": result, "broker": mqtt_manager.broker_host})
+
+
+@app.route("/mqtt/sensors", methods=["GET"])
+def mqtt_sensors():
+    """Get latest sensor data from all belts via MQTT."""
+    belt_id = request.args.get("belt_id")
+    if belt_id:
+        return jsonify({"belt_id": belt_id, "sensors": mqtt_manager.get_belt_sensors(belt_id)})
+    return jsonify({"sensors": mqtt_manager.get_all_sensors()})
+
+
+@app.route("/mqtt/history/<belt_id>/<sensor>", methods=["GET"])
+def mqtt_history(belt_id, sensor):
+    """Get sensor history for a belt."""
+    limit = request.args.get("limit", 50, type=int)
+    history = mqtt_manager.get_sensor_history(belt_id, sensor, limit)
+    return jsonify({"belt_id": belt_id, "sensor": sensor, "history": history})
+
+
+@app.route("/mqtt/publish", methods=["POST"])
+def mqtt_publish():
+    """Publish a message to MQTT broker."""
+    data = request.json
+    topic = data.get("topic", "nmdc/test")
+    payload = data.get("payload", "")
+    mqtt_manager.publish(topic, payload)
+    return jsonify({"published": True, "topic": topic})
+
+
+@app.route("/mqtt/log", methods=["GET"])
+def mqtt_log():
+    """Get recent MQTT messages."""
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify({"log": mqtt_manager.get_message_log(limit)})
+
+
+@app.route("/mqtt/simulate/<belt_id>", methods=["POST"])
+def mqtt_simulate(belt_id):
+    """Simulate sensor data for a belt (for testing without ESP32)."""
+    sensors = mqtt_manager.simulate_sensor_data(belt_id)
+    return jsonify({"belt_id": belt_id, "simulated": sensors})
+
+
+# ============================================================
+# MINIO - OBJECT STORAGE
+# ============================================================
+@app.route("/minio/status", methods=["GET"])
+def minio_status():
+    """Get MinIO storage status."""
+    return jsonify({"minio": minio_storage.get_storage_stats()})
+
+
+@app.route("/minio/connect", methods=["POST"])
+def minio_connect():
+    """Connect to MinIO server."""
+    data = request.json or {}
+    minio_storage.endpoint = data.get("endpoint", minio_storage.endpoint)
+    minio_storage.access_key = data.get("access_key", minio_storage.access_key)
+    minio_storage.secret_key = data.get("secret_key", minio_storage.secret_key)
+    result = minio_storage.connect()
+    return jsonify({"connected": result, "endpoint": minio_storage.endpoint})
+
+
+@app.route("/minio/upload/image", methods=["POST"])
+def minio_upload_image():
+    """Upload a belt image to MinIO."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    image_b64 = data.get("image", "")
+    if not image_b64:
+        return jsonify({"error": "No image data"}), 400
+
+    # Decode base64 image
+    if "," in image_b64:
+        image_b64 = image_b64.split(",")[1]
+    image_bytes = base64.b64decode(image_b64)
+
+    filename = minio_storage.upload_image(belt_id, image_bytes)
+    return jsonify({"uploaded": bool(filename), "filename": filename, "bucket": "nmdc-belt-images"})
+
+
+@app.route("/minio/upload/detection", methods=["POST"])
+def minio_upload_detection():
+    """Upload a detection screenshot with metadata to MinIO."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    image_b64 = data.get("image", "")
+    detections = data.get("detections", {})
+
+    if not image_b64:
+        return jsonify({"error": "No image data"}), 400
+
+    if "," in image_b64:
+        image_b64 = image_b64.split(",")[1]
+    image_bytes = base64.b64decode(image_b64)
+
+    filename = minio_storage.upload_detection(belt_id, image_bytes, detections)
+    return jsonify({"uploaded": bool(filename), "filename": filename, "bucket": "nmdc-detections"})
+
+
+@app.route("/minio/upload/report", methods=["POST"])
+def minio_upload_report():
+    """Upload an analysis report to MinIO."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    report_html = data.get("report", "")
+
+    filename = minio_storage.upload_report(belt_id, report_html)
+    return jsonify({"uploaded": bool(filename), "filename": filename, "bucket": "nmdc-reports"})
+
+
+@app.route("/minio/list/<bucket>", methods=["GET"])
+def minio_list(bucket):
+    """List files in a MinIO bucket."""
+    prefix = request.args.get("prefix", "")
+    limit = request.args.get("limit", 50, type=int)
+    files = minio_storage.list_files(bucket, prefix, limit)
+    return jsonify({"bucket": bucket, "files": files, "count": len(files)})
+
+
+@app.route("/minio/download/<bucket>/<path:filename>", methods=["GET"])
+def minio_download(bucket, filename):
+    """Get a presigned URL for downloading a file."""
+    url = minio_storage.get_file_url(bucket, filename)
+    return jsonify({"url": url, "filename": filename})
+
+
+@app.route("/minio/delete/<bucket>/<path:filename>", methods=["DELETE"])
+def minio_delete(bucket, filename):
+    """Delete a file from MinIO."""
+    result = minio_storage.delete_file(bucket, filename)
+    return jsonify({"deleted": result, "filename": filename})
+
+
+# ============================================================
+# COMPREHENSIVE BELT ANALYSIS (combines everything)
 # ============================================================
 @app.route("/analyze/full", methods=["POST"])
 def full_analysis():
@@ -434,6 +587,15 @@ if __name__ == "__main__":
     print("=" * 60)
     print("\nLoading models...")
     load_models()
-    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts")
+    # Try connecting to MQTT and MinIO
+    print("\nConnecting to MQTT broker...")
+    mqtt_connected = mqtt_manager.connect()
+    print(f"  MQTT: {'Connected' if mqtt_connected else 'Offline (simulated mode)'}")
+
+    print("\nConnecting to MinIO...")
+    minio_connected = minio_storage.connect()
+    print(f"  MinIO: {'Connected' if minio_connected else 'Offline (simulated mode)'}")
+
+    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts | MQTT | MinIO")
     print("\nStarting ML API on port 5001...")
     app.run(host="0.0.0.0", port=5001, debug=False)
