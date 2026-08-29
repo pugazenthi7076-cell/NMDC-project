@@ -82,6 +82,7 @@ export default function LoginPage() {
                   onChange={(e) => setMobile(e.target.value)}
                   placeholder="e.g. ADM-0001 or WKR-0001"
                   required
+                  autoComplete="username"
                   className="w-full pl-11 pr-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
                 />
               </div>

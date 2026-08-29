@@ -26,19 +26,37 @@ export async function connectDB(): Promise<typeof mongoose> {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000, // Fail fast if MongoDB is unreachable
+      connectTimeoutMS: 5000,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => m);
+    console.log(`[MongoDB] Connecting to ${MONGODB_URI.replace(/\/\/.*@/, "//***@")}`);
+
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => {
+      console.log("[MongoDB] Connected successfully");
+      return m;
+    });
   }
 
   try {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    console.error("[MongoDB] Connection failed:", e);
     throw e;
   }
 
   return cached.conn;
+}
+
+// Check if MongoDB is available (for health checks)
+export async function isMongoDBAvailable(): Promise<boolean> {
+  try {
+    await connectDB();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export default connectDB;
