@@ -1,0 +1,25 @@
+# Prometheus configuration for Industrial Belt Monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # ML API metrics
+  - job_name: 'ml-api'
+    static_configs:
+      - targets: ['ml-api:5001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Node.js frontend metrics
+  - job_name: 'frontend'
+    static_configs:
+      - targets: ['frontend:3000']
+    metrics_path: '/api/metrics'
+    scrape_interval: 30s
+
+  # MongoDB metrics
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb:27017']
+    scrape_interval: 60s

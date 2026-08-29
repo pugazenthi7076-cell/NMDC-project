@@ -1,0 +1,95 @@
+# Docker Compose for Industrial Belt Monitoring
+# Full stack: Next.js + ML API + MongoDB + Grafana
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: nmdc-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: nmdc-analyzer
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Python ML API (XGBoost + Random Forest + OpenCV + YOLO + Sensor Fusion)
+  ml-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-service
+    container_name: nmdc-ml-api
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./ml-service:/app/ml-service
+      - ml_models:/app/ml-service/trained_models
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: nmdc-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
+      - ML_API_URL=http://ml-api:5001
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      ml-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nmdc-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=beltdashboard
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+
+  # Prometheus Metrics (for Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nmdc-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  ml_models:
+  grafana_data:

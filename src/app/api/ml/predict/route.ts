@@ -5,12 +5,31 @@ const ML_API_URL = process.env.ML_API_URL || "http://localhost:5001";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { endpoint = "full" } = body;
+    const { endpoint = "full", ...payload } = body;
 
-    const mlResponse = await fetch(`${ML_API_URL}/predict/${endpoint}`, {
+    // Route to different ML endpoints based on the endpoint param
+    const endpointMap: Record<string, string> = {
+      full: "/predict/full",
+      failure: "/predict/failure",
+      health: "/predict/health",
+      yolo: "/detect/yolo",
+      opencv: "/analyze/image",
+      vibration: "/analyze/vibration",
+      temperature: "/analyze/temperature",
+      "motor-current": "/analyze/motor-current",
+      acoustic: "/analyze/acoustic",
+      fusion: "/fusion/analyze",
+      correlate: "/fusion/correlate",
+      alerts: "/alerts/check",
+      "full-analysis": "/analyze/full",
+    };
+
+    const mlPath = endpointMap[endpoint] || `/predict/${endpoint}`;
+
+    const mlResponse = await fetch(`${ML_API_URL}${mlPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
     if (!mlResponse.ok) {
@@ -30,10 +49,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const mlResponse = await fetch(`${ML_API_URL}/health`);
+    const mlResponse = await fetch(`${ML_API_URL}/models`);
     const data = await mlResponse.json();
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({ status: "offline", models_loaded: 0 }, { status: 503 });
+    try {
+      const mlResponse = await fetch(`${ML_API_URL}/health`);
+      const data = await mlResponse.json();
+      return NextResponse.json(data);
+    } catch {
+      return NextResponse.json({ status: "offline", models_loaded: 0 }, { status: 503 });
+    }
   }
 }

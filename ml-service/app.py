@@ -1,6 +1,6 @@
 """
 ML Prediction API Server for Industrial Belt Monitoring
-Serves XGBoost and Random Forest model predictions via REST API.
+Serves XGBoost, Random Forest, OpenCV, YOLO, 1D-CNN/LSTM, Sensor Fusion, and Alerts via REST API.
 """
 
 from flask import Flask, request, jsonify
@@ -9,6 +9,20 @@ import pickle
 import numpy as np
 import os
 import json
+import base64
+import cv2
+
+# Import new modules
+from modules.opencv_processor import BeltImageProcessor, process_frame_base64
+from modules.yolo_detector import BeltYOLODetector
+from modules.deep_learning import (
+    VibrationAnomalyDetector,
+    TemperatureAnomalyDetector,
+    MotorCurrentAnalyzer,
+    AcousticAnalyzer,
+)
+from modules.sensor_fusion import SensorFusionEngine, fusion_engine
+from modules.alerts import alert_manager
 
 app = Flask(__name__)
 CORS(app)
@@ -18,6 +32,14 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), "trained_models")
 # Load all trained models on startup
 models = {}
 encoders = {}
+
+# Initialize modules
+opencv_processor = BeltImageProcessor()
+yolo_detector = BeltYOLODetector(confidence=0.45)
+vibration_detector = VibrationAnomalyDetector()
+temperature_detector = TemperatureAnomalyDetector()
+motor_analyzer = MotorCurrentAnalyzer()
+acoustic_analyzer = AcousticAnalyzer()
 
 
 def load_models():
@@ -29,12 +51,10 @@ def load_models():
         "remaining_life": "rf_remaining_life.pkl",
         "severity_classifier": "rf_severity_classifier.pkl",
     }
-
     encoder_files = {
         "damage_encoder": "damage_label_encoder.pkl",
         "severity_encoder": "severity_label_encoder.pkl",
     }
-
     for name, filename in model_files.items():
         path = os.path.join(MODELS_DIR, filename)
         if os.path.exists(path):
@@ -42,7 +62,7 @@ def load_models():
                 models[name] = pickle.load(f)
             print(f"  [OK] Loaded {name}")
         else:
-            print(f"  [WARN] Missing {name} ({filename})")
+            print(f"  [WARN] Missing {name}")
 
     for name, filename in encoder_files.items():
         path = os.path.join(MODELS_DIR, filename)
@@ -50,8 +70,6 @@ def load_models():
             with open(path, "rb") as f:
                 encoders[name] = pickle.load(f)
             print(f"  [OK] Loaded {name}")
-        else:
-            print(f"  [WARN] Missing {name} ({filename})")
 
 
 def extract_features(data, include_damage_risk=True):
@@ -78,193 +96,311 @@ def extract_features(data, include_damage_risk=True):
     return np.array([base])
 
 
+# ============================================================
+# HEALTH CHECK
+# ============================================================
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "healthy", "models_loaded": len(models)})
-
-
-@app.route("/predict/failure", methods=["POST"])
-def predict_failure():
-    """Predict if belt will fail within 30 days (XGBoost)."""
-    if "failure_predictor" not in models:
-        return jsonify({"error": "Model not loaded"}), 503
-
-    data = request.json
-    features = extract_features(data)
-    probability = models["failure_predictor"].predict_proba(features)[0][1]
-    will_fail = bool(models["failure_predictor"].predict(features)[0])
-
     return jsonify({
-        "model": "XGBoost Failure Predictor",
-        "failure_probability": round(float(probability) * 100, 1),
-        "will_fail_within_30d": will_fail,
-        "risk_level": "critical" if probability > 0.7 else "warning" if probability > 0.4 else "normal",
-        "confidence": round(float(max(probability, 1 - probability)) * 100, 1),
+        "status": "healthy",
+        "models_loaded": len(models),
+        "modules": ["opencv", "yolo", "deep_learning", "sensor_fusion", "alerts"],
     })
 
 
-@app.route("/predict/damage-type", methods=["POST"])
-def predict_damage_type():
-    """Classify damage type (Random Forest)."""
-    if "damage_classifier" not in models or "damage_encoder" not in encoders:
+# ============================================================
+# XGBOOST / RANDOM FOREST PREDICTIONS (existing)
+# ============================================================
+@app.route("/predict/failure", methods=["POST"])
+def predict_failure():
+    if "failure_predictor" not in models:
         return jsonify({"error": "Model not loaded"}), 503
-
     data = request.json
     features = extract_features(data)
-    prediction = models["damage_classifier"].predict(features)[0]
-    probabilities = models["damage_classifier"].predict_proba(features)[0]
-
-    damage_type = encoders["damage_encoder"].inverse_transform([prediction])[0]
-    confidence = float(max(probabilities)) * 100
-
-    # Get all class probabilities
-    class_probs = {}
-    for cls, prob in zip(encoders["damage_encoder"].classes_, probabilities):
-        class_probs[cls] = round(float(prob) * 100, 1)
-
+    probability = models["failure_predictor"].predict_proba(features)[0][1]
     return jsonify({
-        "model": "Random Forest Damage Classifier",
-        "predicted_type": damage_type,
-        "confidence": round(confidence, 1),
-        "all_probabilities": class_probs,
-        "is_damaged": damage_type != "none",
+        "model": "XGBoost Failure Predictor",
+        "failure_probability": round(float(probability) * 100, 1),
+        "will_fail_within_30d": bool(models["failure_predictor"].predict(features)[0]),
+        "risk_level": "critical" if probability > 0.7 else "warning" if probability > 0.4 else "normal",
     })
 
 
 @app.route("/predict/health", methods=["POST"])
 def predict_health():
-    """Predict belt health score 0-100 (XGBoost)."""
     if "health_scorer" not in models:
         return jsonify({"error": "Model not loaded"}), 503
-
     data = request.json
     features = extract_features(data, include_damage_risk=False)
-    health_score = float(models["health_scorer"].predict(features)[0])
-    health_score = max(0, min(100, health_score))
-
-    if health_score >= 85:
-        grade = "A"
-    elif health_score >= 70:
-        grade = "B"
-    elif health_score >= 55:
-        grade = "C"
-    elif health_score >= 40:
-        grade = "D"
-    else:
-        grade = "F"
-
-    return jsonify({
-        "model": "XGBoost Health Scorer",
-        "health_score": round(health_score, 1),
-        "grade": grade,
-        "damage_score": round(100 - health_score, 1),
-    })
-
-
-@app.route("/predict/remaining-life", methods=["POST"])
-def predict_remaining_life():
-    """Predict remaining useful life in days (Random Forest)."""
-    if "remaining_life" not in models:
-        return jsonify({"error": "Model not loaded"}), 503
-
-    data = request.json
-    features = extract_features(data)
-    rul = float(models["remaining_life"].predict(features)[0])
-    rul = max(0, min(365, rul))
-
-    if rul < 7:
-        priority = "urgent"
-    elif rul < 14:
-        priority = "high"
-    elif rul < 30:
-        priority = "medium"
-    else:
-        priority = "low"
-
-    return jsonify({
-        "model": "Random Forest Remaining Life",
-        "remaining_days": round(rul, 0),
-        "priority": priority,
-        "recommendation": (
-            "Immediate replacement required" if rul < 7
-            else "Schedule replacement within 2 weeks" if rul < 14
-            else "Monitor closely, plan maintenance" if rul < 30
-            else "No immediate action needed"
-        ),
-    })
-
-
-@app.route("/predict/severity", methods=["POST"])
-def predict_severity():
-    """Classify damage severity (Random Forest)."""
-    if "severity_classifier" not in models or "severity_encoder" not in encoders:
-        return jsonify({"error": "Model not loaded"}), 503
-
-    data = request.json
-    features = extract_features(data)
-    prediction = models["severity_classifier"].predict(features)[0]
-    probabilities = models["severity_classifier"].predict_proba(features)[0]
-
-    severity = encoders["severity_encoder"].inverse_transform([prediction])[0]
-    confidence = float(max(probabilities)) * 100
-
-    return jsonify({
-        "model": "Random Forest Severity Classifier",
-        "severity": severity,
-        "confidence": round(confidence, 1),
-    })
+    health = max(0, min(100, float(models["health_scorer"].predict(features)[0])))
+    grade = "A" if health >= 85 else "B" if health >= 70 else "C" if health >= 55 else "D" if health >= 40 else "F"
+    return jsonify({"model": "XGBoost Health Scorer", "health_score": round(health, 1), "grade": grade})
 
 
 @app.route("/predict/full", methods=["POST"])
 def predict_full():
-    """Run all models and return comprehensive prediction."""
     data = request.json
     features_12 = extract_features(data, include_damage_risk=True)
     features_11 = extract_features(data, include_damage_risk=False)
     results = {}
-
-    # Failure prediction
     if "failure_predictor" in models:
         prob = float(models["failure_predictor"].predict_proba(features_12)[0][1])
-        results["failure"] = {
-            "probability": round(prob * 100, 1),
-            "will_fail": bool(models["failure_predictor"].predict(features_12)[0]),
-            "risk_level": "critical" if prob > 0.7 else "warning" if prob > 0.4 else "normal",
-        }
-
-    # Health score (uses 11 features - no damage_risk)
+        results["failure"] = {"probability": round(prob * 100, 1), "will_fail": bool(models["failure_predictor"].predict(features_12)[0]),
+                              "risk_level": "critical" if prob > 0.7 else "warning" if prob > 0.4 else "normal"}
     if "health_scorer" in models:
         health = max(0, min(100, float(models["health_scorer"].predict(features_11)[0])))
         grade = "A" if health >= 85 else "B" if health >= 70 else "C" if health >= 55 else "D" if health >= 40 else "F"
         results["health"] = {"score": round(health, 1), "grade": grade, "damage": round(100 - health, 1)}
-
-    # Remaining life
     if "remaining_life" in models:
         rul = max(0, min(365, float(models["remaining_life"].predict(features_12)[0])))
-        priority = "urgent" if rul < 7 else "high" if rul < 14 else "medium" if rul < 30 else "low"
-        results["remaining_life"] = {"days": round(rul, 0), "priority": priority}
-
-    # Damage type
+        results["remaining_life"] = {"days": round(rul, 0), "priority": "urgent" if rul < 7 else "high" if rul < 14 else "medium" if rul < 30 else "low"}
     if "damage_classifier" in models and "damage_encoder" in encoders:
         pred = models["damage_classifier"].predict(features_12)[0]
-        dmg_type = encoders["damage_encoder"].inverse_transform([pred])[0]
-        results["damage_type"] = {"type": dmg_type, "is_damaged": dmg_type != "none"}
-
-    # Severity
+        results["damage_type"] = {"type": encoders["damage_encoder"].inverse_transform([pred])[0]}
     if "severity_classifier" in models and "severity_encoder" in encoders:
         pred = models["severity_classifier"].predict(features_12)[0]
-        sev = encoders["severity_encoder"].inverse_transform([pred])[0]
-        results["severity"] = {"level": sev}
+        results["severity"] = {"level": encoders["severity_encoder"].inverse_transform([pred])[0]}
+    return jsonify({"model": "Ensemble (XGBoost + Random Forest)", "predictions": results})
+
+
+# ============================================================
+# OPENCV IMAGE PROCESSING
+# ============================================================
+@app.route("/analyze/image", methods=["POST"])
+def analyze_image():
+    """Analyze belt image using OpenCV for cracks, tears, abrasion, edge damage."""
+    data = request.json
+    image_data = data.get("image")
+    if not image_data:
+        return jsonify({"error": "No image data provided"}), 400
+    result = opencv_processor.analyze_image(image_data)
+    return jsonify({"model": "OpenCV Belt Image Processor", "analysis": result})
+
+
+@app.route("/analyze/frame", methods=["POST"])
+def analyze_frame():
+    """Analyze a single camera frame (base64) using OpenCV."""
+    data = request.json
+    image_data = data.get("frame")
+    if not image_data:
+        return jsonify({"error": "No frame data"}), 400
+    result = process_frame_base64(image_data)
+    return jsonify({"model": "OpenCV Real-time Processor", "analysis": result})
+
+
+# ============================================================
+# YOLO OBJECT DETECTION
+# ============================================================
+@app.route("/detect/yolo", methods=["POST"])
+def detect_yolo():
+    """Run YOLO detection on an image."""
+    data = request.json
+    image_data = data.get("image")
+    if not image_data:
+        return jsonify({"error": "No image data"}), 400
+
+    # Decode image
+    if "," in image_data:
+        image_data = image_data.split(",")[1]
+    img_bytes = base64.b64decode(image_data)
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if image is None:
+        return jsonify({"error": "Invalid image"}), 400
+
+    detections = yolo_detector.detect(image)
+    summary = yolo_detector.get_detection_summary(detections)
 
     return jsonify({
-        "model": "Ensemble (XGBoost + Random Forest)",
-        "predictions": results,
+        "model": "YOLOv8 Belt Defect Detector",
+        "detections": detections,
+        "summary": summary,
     })
 
 
+@app.route("/detect/yolo/simulate", methods=["GET"])
+def simulate_yolo():
+    """Get simulated YOLO detections (for demo without camera)."""
+    w = request.args.get("width", 640, type=int)
+    h = request.args.get("height", 480, type=int)
+    detections = yolo_detector.detect_simulated((h, w))
+    summary = yolo_detector.get_detection_summary(detections)
+    return jsonify({"model": "YOLOv8 (Simulated)", "detections": detections, "summary": summary})
+
+
+# ============================================================
+# 1D-CNN / LSTM TIME-SERIES ANALYSIS
+# ============================================================
+@app.route("/analyze/vibration", methods=["POST"])
+def analyze_vibration():
+    """Analyze vibration signal using 1D-CNN features."""
+    data = request.json
+    signal = np.array(data.get("signal", []))
+    if len(signal) == 0:
+        return jsonify({"error": "No signal data"}), 400
+    result = vibration_detector.detect_anomaly(signal)
+    return jsonify({"model": "1D-CNN Vibration Anomaly Detector", "analysis": result})
+
+
+@app.route("/analyze/temperature", methods=["POST"])
+def analyze_temperature():
+    """Analyze temperature time-series using LSTM-inspired detection."""
+    data = request.json
+    temps = np.array(data.get("temperatures", []))
+    if len(temps) == 0:
+        return jsonify({"error": "No temperature data"}), 400
+    result = temperature_detector.detect_anomaly(temps)
+    return jsonify({"model": "LSTM Temperature Anomaly Detector", "analysis": result})
+
+
+@app.route("/analyze/motor-current", methods=["POST"])
+def analyze_motor_current():
+    """Analyze motor current signal."""
+    data = request.json
+    current = np.array(data.get("current", []))
+    nominal = data.get("nominal_current", 200)
+    if len(current) == 0:
+        return jsonify({"error": "No current data"}), 400
+    analyzer = MotorCurrentAnalyzer(nominal_current=nominal)
+    result = analyzer.analyze(current)
+    return jsonify({"model": "Motor Current Analyzer", "analysis": result})
+
+
+@app.route("/analyze/acoustic", methods=["POST"])
+def analyze_acoustic():
+    """Analyze acoustic signal."""
+    data = request.json
+    signal = np.array(data.get("signal", []))
+    if len(signal) == 0:
+        return jsonify({"error": "No acoustic data"}), 400
+    result = acoustic_analyzer.analyze(signal)
+    return jsonify({"model": "Acoustic Analyzer", "analysis": result})
+
+
+# ============================================================
+# SENSOR FUSION
+# ============================================================
+@app.route("/fusion/analyze", methods=["POST"])
+def sensor_fusion_analyze():
+    """Fuse all sensor data into unified health assessment."""
+    data = request.json
+    result = fusion_engine.fuse_all(data)
+    return jsonify({"model": "Multi-Sensor Fusion Engine", "fusion": result})
+
+
+@app.route("/fusion/correlate", methods=["POST"])
+def sensor_correlate():
+    """Cross-sensor correlation analysis."""
+    data = request.json
+    sensor_signals = {}
+    for sensor, values in data.items():
+        if isinstance(values, list):
+            sensor_signals[sensor] = values
+    result = fusion_engine.cross_sensor_correlation(sensor_signals)
+    return jsonify({"model": "Cross-Sensor Correlation", "correlation": result})
+
+
+# ============================================================
+# ALERTS
+# ============================================================
+@app.route("/alerts/check", methods=["POST"])
+def check_alerts():
+    """Auto-check sensor data and generate alerts."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    sensor_data = data.get("sensor_data", {})
+    alerts = alert_manager.auto_check_and_alert(belt_id, sensor_data)
+    return jsonify({"alerts_generated": len(alerts), "alerts": alerts})
+
+
+@app.route("/alerts/manual", methods=["POST"])
+def manual_alert():
+    """Send a manual alert."""
+    data = request.json
+    alert = alert_manager.create_alert(
+        belt_id=data.get("belt_id", "BLT-000"),
+        severity=data.get("severity", "medium"),
+        title=data.get("title", "Manual Alert"),
+        message=data.get("message", "No message"),
+        sensor=data.get("sensor", "manual"),
+    )
+    return jsonify({"alert": alert})
+
+
+@app.route("/alerts/history", methods=["GET"])
+def alert_history():
+    """Get alert history."""
+    belt_id = request.args.get("belt_id")
+    limit = request.args.get("limit", 50, type=int)
+    history = alert_manager.get_history(belt_id=belt_id, limit=limit)
+    return jsonify({"history": history, "total": len(alert_manager.alert_history)})
+
+
+@app.route("/alerts/stats", methods=["GET"])
+def alert_stats():
+    """Get alert statistics."""
+    return jsonify(alert_manager.get_stats())
+
+
+# ============================================================
+# COMPREHENSIVE BELL ANALYSIS (combines everything)
+# ============================================================
+@app.route("/analyze/full", methods=["POST"])
+def full_analysis():
+    """Run complete analysis on a belt: ML predictions + sensor fusion + alerts."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    sensor_data = data.get("sensors", {})
+
+    results = {}
+
+    # 1. XGBoost/RF predictions
+    features_12 = extract_features(data, include_damage_risk=True)
+    features_11 = extract_features(data, include_damage_risk=False)
+
+    if "health_scorer" in models:
+        health = max(0, min(100, float(models["health_scorer"].predict(features_11)[0])))
+        results["ml_health"] = {"score": round(health, 1), "grade": "A" if health >= 85 else "B" if health >= 70 else "C" if health >= 55 else "D" if health >= 40 else "F"}
+
+    if "failure_predictor" in models:
+        prob = float(models["failure_predictor"].predict_proba(features_12)[0][1])
+        results["ml_failure"] = {"probability": round(prob * 100, 1), "will_fail": bool(models["failure_predictor"].predict(features_12)[0])}
+
+    if "remaining_life" in models:
+        rul = max(0, min(365, float(models["remaining_life"].predict(features_12)[0])))
+        results["ml_remaining_life"] = {"days": round(rul, 0)}
+
+    # 2. Time-series analysis
+    vib_signal = sensor_data.get("vibration_signal")
+    if vib_signal:
+        results["vibration_analysis"] = vibration_detector.detect_anomaly(np.array(vib_signal))
+
+    temp_series = sensor_data.get("temperature_series")
+    if temp_series:
+        results["temperature_analysis"] = temperature_detector.detect_anomaly(np.array(temp_series))
+
+    # 3. Sensor fusion
+    fusion_input = {}
+    for s in ["vibration", "temperature", "motor_current", "acoustic", "load_tension", "electromagnetic", "camera_ai"]:
+        if s in sensor_data:
+            fusion_input[s] = sensor_data[s]
+    if fusion_input:
+        results["sensor_fusion"] = fusion_engine.fuse_all(fusion_input)
+
+    # 4. Auto-alerts
+    alerts = alert_manager.auto_check_and_alert(belt_id, results)
+    results["alerts"] = alerts
+
+    return jsonify({"belt_id": belt_id, "full_analysis": results})
+
+
+# ============================================================
+# MODEL INFO
+# ============================================================
 @app.route("/models", methods=["GET"])
 def list_models():
-    """List all loaded models and their info."""
+    """List all loaded models and modules."""
     results_path = os.path.join(MODELS_DIR, "training_results.json")
     training_info = {}
     if os.path.exists(results_path):
@@ -275,18 +411,29 @@ def list_models():
         "loaded_models": list(models.keys()),
         "loaded_encoders": list(encoders.keys()),
         "training_info": training_info,
+        "modules": {
+            "opencv": "BeltImageProcessor - cracks, tears, abrasion, edge damage, misalignment",
+            "yolo": "BeltYOLODetector - 7 defect classes with real-time detection",
+            "vibration_1d_cnn": "VibrationAnomalyDetector - FFT features + 1D-CNN anomaly detection",
+            "temperature_lstm": "TemperatureAnomalyDetector - trend + statistical process control",
+            "motor_current": "MotorCurrentAnalyzer - overload, harmonics, fluctuation analysis",
+            "acoustic": "AcousticAnalyzer - noise level, frequency, sound type classification",
+            "sensor_fusion": "SensorFusionEngine - weighted voting + Bayesian fusion",
+            "alerts": "AlertManager - email, SMS, webhook with throttling + escalation",
+        },
     })
 
 
 if __name__ == "__main__":
     import sys
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-    print("=" * 50)
-    print("Industrial Belt Monitoring - ML API")
-    print("=" * 50)
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+    print("=" * 60)
+    print("Industrial Belt Monitoring - Full ML API")
+    print("=" * 60)
     print("\nLoading models...")
     load_models()
+    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts")
     print("\nStarting ML API on port 5001...")
     app.run(host="0.0.0.0", port=5001, debug=False)

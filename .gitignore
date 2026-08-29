@@ -1,5 +1,7 @@
 # dependencies
 node_modules/
+ml-service/__pycache__/
+ml-service/modules/__pycache__/
 
 # next.js
 .next/
@@ -12,6 +14,7 @@ build/
 .DS_Store
 *.pem
 .env*.local
+.env
 
 # debug
 npm-debug.log*
@@ -20,4 +23,20 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# vercel
 .vercel
+
+# docker data
+grafana_data/
+mongodb_data/
+
+# python
+*.pyc
+__pycache__/
+venv/
+.venv/
+
+# logs
+*.log
+*.log.err
+.freebuff/
