@@ -112,13 +112,14 @@ export default function MLPredictionsPage() {
 
   const runAllModules = useCallback(async (index: number) => {
     setPredictions(prev => prev.map((p, i) => i === index ? { ...p, status: "loading" } : p));
+    const sensors = SAMPLE_SENSORS[index];
 
     try {
       // 1. XGBoost/RF prediction
       const mlRes = await fetch("/api/ml/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...predictions[index].sensors, endpoint: "full" }),
+        body: JSON.stringify({ ...sensors, endpoint: "full" }),
       });
       const mlData = mlRes.ok ? await mlRes.json() : null;
 
@@ -136,10 +137,10 @@ export default function MLPredictionsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           endpoint: "fusion",
-          vibration: { anomaly: predictions[index].sensors.vibration > 10, score: Math.min(1, predictions[index].sensors.vibration / 20), health_score: Math.max(0, 100 - predictions[index].sensors.vibration * 7) },
-          temperature: { anomaly: predictions[index].sensors.temperature > 60, score: Math.min(1, (predictions[index].sensors.temperature - 30) / 50), health_score: Math.max(0, 100 - (predictions[index].sensors.temperature - 28) * 2) },
-          motor_current: { anomaly: predictions[index].sensors.motor_current > 250, score: Math.min(1, predictions[index].sensors.motor_current / 350), health_score: Math.max(0, 100 - (predictions[index].sensors.motor_current - 150) / 2) },
-          acoustic: { anomaly: predictions[index].sensors.acoustic > 70, score: Math.min(1, predictions[index].sensors.acoustic / 100), health_score: Math.max(0, 100 - (predictions[index].sensors.acoustic - 40) * 2) },
+          vibration: { anomaly: sensors.vibration > 10, score: Math.min(1, sensors.vibration / 20), health_score: Math.max(0, 100 - sensors.vibration * 7) },
+          temperature: { anomaly: sensors.temperature > 60, score: Math.min(1, (sensors.temperature - 30) / 50), health_score: Math.max(0, 100 - (sensors.temperature - 28) * 2) },
+          motor_current: { anomaly: sensors.motor_current > 250, score: Math.min(1, sensors.motor_current / 350), health_score: Math.max(0, 100 - (sensors.motor_current - 150) / 2) },
+          acoustic: { anomaly: sensors.acoustic > 70, score: Math.min(1, sensors.acoustic / 100), health_score: Math.max(0, 100 - (sensors.acoustic - 40) * 2) },
         }),
       }).catch(() => null);
       const fusionData = fusionRes && fusionRes.ok ? await fusionRes.json() : null;
@@ -163,7 +164,7 @@ export default function MLPredictionsPage() {
     } catch {
       setPredictions(prev => prev.map((p, i) => i === index ? { ...p, status: "error" } : p));
     }
-  }, [predictions]);
+  }, []);
 
   const runAllPredictions = async () => {
     setRunningAll(true);
