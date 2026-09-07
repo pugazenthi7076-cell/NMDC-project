@@ -25,6 +25,7 @@ from modules.sensor_fusion import SensorFusionEngine, fusion_engine
 from modules.alerts import alert_manager
 from modules.mqtt_client import mqtt_manager
 from modules.minio_storage import minio_storage
+from modules.telnet_collector import telnet_collector, telnet_simulator
 
 app = Flask(__name__)
 CORS(app)
@@ -497,6 +498,100 @@ def minio_delete(bucket, filename):
 
 
 # ============================================================
+# TELNET - SENSOR DATA COLLECTION
+# ============================================================
+@app.route("/telnet/status", methods=["GET"])
+def telnet_status():
+    """Get Telnet collection status."""
+    return jsonify({"telnet": telnet_collector.get_stats()})
+
+
+@app.route("/telnet/connect", methods=["POST"])
+def telnet_connect():
+    """Connect to an ESP32 device via Telnet."""
+    data = request.json
+    belt_id = data.get("belt_id", "BLT-000")
+    host = data.get("host", "localhost")
+    port = data.get("port", 23)
+    result = telnet_collector.register_device(belt_id, host, port)
+    return jsonify({"connected": result, "belt_id": belt_id, "host": host, "port": port})
+
+
+@app.route("/telnet/collect/<belt_id>", methods=["GET"])
+def telnet_collect(belt_id):
+    """Collect a single sensor reading from a belt via Telnet."""
+    command = request.args.get("command", "GET_SENSORS")
+    reading = telnet_collector.collect_reading(belt_id, command)
+    if reading:
+        telnet_collector._store_reading(belt_id, reading)
+        return jsonify({"belt_id": belt_id, "reading": reading})
+    return jsonify({"error": "No reading available"}), 404
+
+
+@app.route("/telnet/start/<belt_id>", methods=["POST"])
+def telnet_start(belt_id):
+    """Start continuous data collection for a belt."""
+    data = request.json or {}
+    interval = data.get("interval", 5.0)
+    command = data.get("command", "GET_SENSORS")
+    telnet_collector.start_continuous_collection(belt_id, interval, command)
+    return jsonify({"belt_id": belt_id, "collection_started": True, "interval": interval})
+
+
+@app.route("/telnet/stop/<belt_id>", methods=["POST"])
+def telnet_stop(belt_id):
+    """Stop data collection for a belt."""
+    telnet_collector.stop_collection(belt_id)
+    return jsonify({"belt_id": belt_id, "collection_stopped": True})
+
+
+@app.route("/telnet/stop", methods=["POST"])
+def telnet_stop_all():
+    """Stop all data collection."""
+    telnet_collector.stop_collection()
+    return jsonify({"all_collection_stopped": True})
+
+
+@app.route("/telnet/history/<belt_id>", methods=["GET"])
+def telnet_history(belt_id):
+    """Get reading history for a belt."""
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify({"belt_id": belt_id, "history": telnet_collector.get_history(belt_id, limit)})
+
+
+@app.route("/telnet/latest", methods=["GET"])
+def telnet_latest():
+    """Get latest readings for all belts."""
+    return jsonify({"latest": telnet_collector.get_all_latest()})
+
+
+@app.route("/telnet/simulate/start", methods=["POST"])
+def telnet_simulate_start():
+    """Start the Telnet sensor simulator."""
+    data = request.json or {}
+    host = data.get("host", "0.0.0.0")
+    port = data.get("port", 23)
+    telnet_simulator.host = host
+    telnet_simulator.port = port
+    telnet_simulator.start()
+    return jsonify({"simulator_started": True, "host": host, "port": port})
+
+
+@app.route("/telnet/simulate/stop", methods=["POST"])
+def telnet_simulate_stop():
+    """Stop the Telnet sensor simulator."""
+    telnet_simulator.stop()
+    return jsonify({"simulator_stopped": True})
+
+
+@app.route("/telnet/disconnect/<belt_id>", methods=["POST"])
+def telnet_disconnect(belt_id):
+    """Disconnect from a belt's Telnet device."""
+    telnet_collector.disconnect_device(belt_id)
+    return jsonify({"disconnected": True, "belt_id": belt_id})
+
+
+# ============================================================
 # COMPREHENSIVE BELT ANALYSIS (combines everything)
 # ============================================================
 @app.route("/analyze/full", methods=["POST"])
@@ -596,6 +691,6 @@ if __name__ == "__main__":
     minio_connected = minio_storage.connect()
     print(f"  MinIO: {'Connected' if minio_connected else 'Offline (simulated mode)'}")
 
-    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts | MQTT | MinIO")
+    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts | MQTT | MinIO | Telnet")
     print("\nStarting ML API on port 5001...")
     app.run(host="0.0.0.0", port=5001, debug=False)
