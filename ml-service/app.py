@@ -27,6 +27,8 @@ from modules.mqtt_client import mqtt_manager
 from modules.minio_storage import minio_storage
 from modules.telnet_collector import telnet_collector, telnet_simulator
 from modules.plc_emulator import plc_emulator
+from modules.modbus_client import modbus_client, modbus_mapper
+from modules.edge_gateway import edge_gateway, data_normalizer
 
 app = Flask(__name__)
 CORS(app)
@@ -108,7 +110,7 @@ def health():
     return jsonify({
         "status": "healthy",
         "models_loaded": len(models),
-        "modules": ["opencv", "yolo", "deep_learning", "sensor_fusion", "alerts"],
+        "modules": ["opencv", "yolo", "deep_learning", "sensor_fusion", "alerts", "mqtt", "minio", "telnet", "plc_emulator", "modbus", "edge_gateway"],
     })
 
 
@@ -704,6 +706,213 @@ def plc_telnet_connect():
     for belt_id, plc in plc_emulator.plcs.items():
         telnet_collector.register_device(belt_id, "localhost", plc_emulator.port)
     return jsonify({"connected": True, "devices": len(plc_emulator.plcs)})
+
+
+# ============================================================
+# MODBUS TCP - REAL PLC COMMUNICATION
+# ============================================================
+@app.route("/modbus/connect", methods=["POST"])
+def modbus_connect():
+    """Connect to a real PLC via Modbus TCP."""
+    data = request.json or {}
+    modbus_client.host = data.get("host", "192.168.1.10")
+    modbus_client.port = data.get("port", 502)
+    modbus_client.unit_id = data.get("unit_id", 1)
+    connected = modbus_client.connect()
+    return jsonify({"connected": connected, "host": modbus_client.host, "port": modbus_client.port})
+
+
+@app.route("/modbus/disconnect", methods=["POST"])
+def modbus_disconnect():
+    """Disconnect from PLC."""
+    modbus_client.disconnect()
+    return jsonify({"disconnected": True})
+
+
+@app.route("/modbus/read", methods=["GET"])
+def modbus_read():
+    """Read all sensors from PLC via Modbus."""
+    raw_data = modbus_client.read_all_sensors()
+    if raw_data:
+        pdf_data = modbus_mapper.to_pdf_format(raw_data)
+        return jsonify({"source": "modbus_tcp", "raw": raw_data, "pdf_format": pdf_data})
+    return jsonify({"error": "No data from PLC"}), 503
+
+
+@app.route("/modbus/read/<int:address>", methods=["GET"])
+def modbus_read_register(address):
+    """Read a specific Modbus register."""
+    count = request.args.get("count", 1, type=int)
+    regs = modbus_client.read_register(address, count)
+    if regs:
+        return jsonify({"address": address, "count": count, "registers": regs})
+    return jsonify({"error": f"Cannot read register {address}"}), 503
+
+
+@app.route("/modbus/write", methods=["POST"])
+def modbus_write():
+    """Write to a Modbus register."""
+    data = request.json
+    address = data.get("address", 0)
+    value = data.get("value", 0)
+    result = modbus_client.write_register(address, int(value))
+    return jsonify({"written": result, "address": address, "value": value})
+
+
+@app.route("/modbus/status", methods=["GET"])
+def modbus_status():
+    """Get Modbus connection status."""
+    return jsonify({"modbus": modbus_client.get_stats()})
+
+
+@app.route("/modbus/map", methods=["GET"])
+def modbus_map():
+    """Get PLC register map."""
+    return jsonify({"register_map": modbus_client.register_map})
+
+
+# ============================================================
+# EDGE GATEWAY - PLC TO BACKEND BRIDGE
+# ============================================================
+@app.route("/edge/status", methods=["GET"])
+def edge_status():
+    """Get Edge Gateway status."""
+    return jsonify({"edge_gateway": edge_gateway.get_stats()})
+
+
+@app.route("/edge/start", methods=["POST"])
+def edge_start():
+    """Start the Edge Gateway."""
+    data = request.json or {}
+    edge_gateway.backend_url = data.get("backend_url", "http://localhost:5001")
+    edge_gateway._collection_interval = data.get("interval", 2.0)
+    edge_gateway.start()
+    return jsonify({"started": True, "backend_url": edge_gateway.backend_url})
+
+
+@app.route("/edge/stop", methods=["POST"])
+def edge_stop():
+    """Stop the Edge Gateway."""
+    edge_gateway.stop()
+    return jsonify({"stopped": True})
+
+
+@app.route("/edge/data", methods=["POST"])
+def edge_receive_data():
+    """Receive data from Edge Gateway (backend endpoint)."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data"}), 400
+
+    belt_id = data.get("beltId", "unknown")
+    timestamp = data.get("timestamp", datetime.utcnow().isoformat())
+
+    # Process and store the data
+    print(f"[EdgeGateway] Received data from {belt_id} at {timestamp}")
+
+    # Run ML predictions if sensor data available
+    predictions = {}
+    if "vibration" in data and "temperature" in data:
+        try:
+            features = extract_features(data)
+            if "health_scorer" in models:
+                health = max(0, min(100, float(models["health_scorer"].predict(features)[0])))
+                predictions["health_score"] = round(health, 1)
+        except Exception as e:
+            print(f"[EdgeGateway] ML prediction error: {e}")
+
+    # Check for alerts
+    alerts = []
+    if data.get("alarm") or data.get("emergencyStop"):
+        alarm_code = data.get("alarmCode", 0)
+        alarm_info = data_normalizer.normalize_alarm_code(alarm_code)
+        alerts.append({
+            "belt_id": belt_id,
+            "severity": alarm_info["severity"],
+            "message": alarm_info["message"],
+            "code": alarm_code,
+            "timestamp": timestamp,
+        })
+
+    return jsonify({
+        "received": True,
+        "belt_id": belt_id,
+        "predictions": predictions,
+        "alerts": alerts,
+    })
+
+
+@app.route("/edge/connect-plc", methods=["POST"])
+def edge_connect_plc():
+    """Connect Edge Gateway to PLC emulator."""
+    for belt_id, plc in plc_emulator.plcs.items():
+        edge_gateway.register_plc(belt_id, plc)
+    return jsonify({"connected": True, "plcs": len(plc_emulator.plcs)})
+
+
+@app.route("/edge/simulate", methods=["POST"])
+def edge_simulate():
+    """Simulate Edge Gateway data flow."""
+    data = request.json or {}
+    belt_id = data.get("belt_id", "BLT-001")
+
+    # Get data from PLC emulator
+    plc = plc_emulator.plcs.get(belt_id)
+    if not plc:
+        return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+    # Read sensor data
+    raw = plc.read_sensor_data()
+
+    # Normalize to PDF format
+    normalized = {
+        "beltId": belt_id,
+        "speed": raw["sensors"].get("belt_speed", 0),
+        "motorRPM": int(raw["sensors"].get("motor_current", 0) * 3),
+        "motorCurrent": raw["sensors"].get("motor_current", 0),
+        "temperature": raw["sensors"].get("temperature_bearing", 0),
+        "vibration": raw["sensors"].get("vibration", 0),
+        "beltStatus": "RUNNING" if raw["status"]["belt_status"] == 2 else "STOPPED",
+        "alignment": "NORMAL" if abs(raw["sensors"].get("alignment_offset", 0)) < 20 else "MISALIGNED",
+        "alarm": raw["status"]["alarm_code"] > 0,
+        "emergencyStop": raw["status"]["fault_code"] == 99,
+        "bearingTemp": raw["sensors"].get("temperature_bearing", 0),
+        "gearboxTemp": raw["sensors"].get("temperature_gearbox", 0),
+        "operatingHours": int(raw["status"].get("remaining_life", 0) * 10),
+        "alarmCode": int(raw["status"]["alarm_code"]),
+        "timestamp": raw["timestamp"],
+        "source": "plc_emulator",
+    }
+
+    # Send to backend endpoint
+    import requests as req
+    try:
+        resp = req.post("http://localhost:5001/edge/data", json=normalized, timeout=5)
+        result = resp.json()
+    except Exception:
+        result = {"received": True}
+
+    return jsonify({"gateway_data": normalized, "backend_response": result})
+
+
+@app.route("/edge/all-belts", methods=["GET"])
+def edge_all_belts():
+    """Get simulated Edge Gateway data for all belts."""
+    all_data = {}
+    for belt_id, plc in plc_emulator.plcs.items():
+        raw = plc.read_sensor_data()
+        all_data[belt_id] = {
+            "beltId": belt_id,
+            "speed": raw["sensors"].get("belt_speed", 0),
+            "motorRPM": int(raw["sensors"].get("motor_current", 0) * 3),
+            "motorCurrent": raw["sensors"].get("motor_current", 0),
+            "temperature": raw["sensors"].get("temperature_bearing", 0),
+            "vibration": raw["sensors"].get("vibration", 0),
+            "beltStatus": "RUNNING" if raw["status"]["belt_status"] == 2 else "STOPPED",
+            "alarm": raw["status"]["alarm_code"] > 0,
+            "timestamp": raw["timestamp"],
+        }
+    return jsonify({"belts": all_data, "count": len(all_data)})
 
 
 # ============================================================
