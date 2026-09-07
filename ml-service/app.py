@@ -26,6 +26,7 @@ from modules.alerts import alert_manager
 from modules.mqtt_client import mqtt_manager
 from modules.minio_storage import minio_storage
 from modules.telnet_collector import telnet_collector, telnet_simulator
+from modules.plc_emulator import plc_emulator
 
 app = Flask(__name__)
 CORS(app)
@@ -592,6 +593,120 @@ def telnet_disconnect(belt_id):
 
 
 # ============================================================
+# PLC EMULATOR - INDUSTRIAL PLC SIMULATION
+# ============================================================
+@app.route("/plc/status", methods=["GET"])
+def plc_status():
+    """Get PLC emulator status."""
+    return jsonify({"plc": plc_emulator.get_stats()})
+
+
+@app.route("/plc/start", methods=["POST"])
+def plc_start():
+    """Start the PLC emulator server."""
+    data = request.json or {}
+    host = data.get("host", "0.0.0.0")
+    port = data.get("port", 5023)
+    plc_emulator.host = host
+    plc_emulator.port = port
+    plc_emulator.start()
+    return jsonify({"started": True, "host": host, "port": port, "plcs": len(plc_emulator.plcs)})
+
+
+@app.route("/plc/stop", methods=["POST"])
+def plc_stop():
+    """Stop the PLC emulator server."""
+    plc_emulator.stop()
+    return jsonify({"stopped": True})
+
+
+@app.route("/plc/sensors", methods=["GET"])
+def plc_sensors():
+    """Get sensor data from all PLCs."""
+    return jsonify({"sensors": plc_emulator.get_all_sensor_data()})
+
+
+@app.route("/plc/sensors/<belt_id>", methods=["GET"])
+def plc_sensors_belt(belt_id):
+    """Get sensor data for a specific belt."""
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc:
+        return jsonify({"belt_id": belt_id, "data": plc.read_sensor_data()})
+    return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+
+@app.route("/plc/registers/<belt_id>", methods=["GET"])
+def plc_registers(belt_id):
+    """Get all registers for a belt's PLC."""
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc:
+        return jsonify({"belt_id": belt_id, "plc_id": plc.plc_id, "registers": plc.read_all_registers()})
+    return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+
+@app.route("/plc/registers/<belt_id>/<int:address>", methods=["GET"])
+def plc_register_read(belt_id, address):
+    """Read a specific register."""
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc:
+        reg = plc.read_register(address)
+        if reg:
+            return jsonify(reg)
+        return jsonify({"error": f"Register {address} not found"}), 404
+    return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+
+@app.route("/plc/registers/<belt_id>/<int:address>", methods=["PUT"])
+def plc_register_write(belt_id, address):
+    """Write to a register."""
+    data = request.json
+    value = data.get("value", 0)
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc and address in plc.registers:
+        plc.registers[address].update(float(value))
+        return jsonify({"written": True, "address": address, "value": value})
+    return jsonify({"error": f"Register {address} not found"}), 404
+
+
+@app.route("/plc/fault/<belt_id>/<fault_type>", methods=["POST"])
+def plc_inject_fault(belt_id, fault_type):
+    """Inject a simulated fault into a PLC."""
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc:
+        valid_faults = ["bearing_overheat", "motor_overload", "belt_tear", "misalignment", "splice_failure", "emergency_stop"]
+        if fault_type in valid_faults:
+            plc.inject_fault(fault_type)
+            return jsonify({"fault_injected": True, "belt_id": belt_id, "fault_type": fault_type})
+        return jsonify({"error": f"Invalid fault type. Valid: {valid_faults}"}), 400
+    return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+
+@app.route("/plc/fault/<belt_id>/clear", methods=["POST"])
+def plc_clear_fault(belt_id):
+    """Clear all faults on a PLC."""
+    plc = plc_emulator.plcs.get(belt_id)
+    if plc:
+        plc.clear_faults()
+        return jsonify({"faults_cleared": True, "belt_id": belt_id})
+    return jsonify({"error": f"PLC not found for {belt_id}"}), 404
+
+
+@app.route("/plc/all/status", methods=["GET"])
+def plc_all_status():
+    """Get status of all PLCs."""
+    return jsonify({"plcs": plc_emulator.get_plc_status()})
+
+
+@app.route("/plc/telnet/connect", methods=["POST"])
+def plc_telnet_connect():
+    """Connect Telnet collector to PLC emulator."""
+    data = request.json or {}
+    for belt_id, plc in plc_emulator.plcs.items():
+        telnet_collector.register_device(belt_id, "localhost", plc_emulator.port)
+    return jsonify({"connected": True, "devices": len(plc_emulator.plcs)})
+
+
+# ============================================================
 # COMPREHENSIVE BELT ANALYSIS (combines everything)
 # ============================================================
 @app.route("/analyze/full", methods=["POST"])
@@ -691,6 +806,6 @@ if __name__ == "__main__":
     minio_connected = minio_storage.connect()
     print(f"  MinIO: {'Connected' if minio_connected else 'Offline (simulated mode)'}")
 
-    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts | MQTT | MinIO | Telnet")
+    print("\nModules loaded: OpenCV | YOLO | 1D-CNN/LSTM | Sensor Fusion | Alerts | MQTT | MinIO | Telnet | PLC Emulator")
     print("\nStarting ML API on port 5001...")
     app.run(host="0.0.0.0", port=5001, debug=False)
