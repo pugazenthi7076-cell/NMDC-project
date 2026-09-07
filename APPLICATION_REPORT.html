@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Industrial Belt Monitoring System - Complete Application Report</title>
+<style>
+  @page { margin: 1cm; size: A4; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; line-height: 1.6; padding: 40px; max-width: 900px; margin: auto; }
+  .cover { text-align: center; padding: 80px 0 40px; border-bottom: 3px solid #f97316; margin-bottom: 40px; }
+  .cover h1 { font-size: 28px; color: #f97316; margin-bottom: 8px; }
+  .cover h2 { font-size: 18px; color: #334155; font-weight: 400; margin-bottom: 20px; }
+  .cover .meta { font-size: 12px; color: #64748b; }
+  h2 { font-size: 18px; color: #f97316; margin: 30px 0 12px; border-bottom: 2px solid #f97316; padding-bottom: 4px; }
+  h3 { font-size: 14px; color: #1e293b; margin: 16px 0 8px; }
+  p, li { font-size: 12px; color: #334155; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 11px; }
+  th { background: #1e293b; color: white; padding: 8px 10px; text-align: left; }
+  td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-orange { background: #fff7ed; color: #9a3412; }
+  .badge-red { background: #fef2f2; color: #991b1b; }
+  .badge-purple { background: #faf5ff; color: #6b21a8; }
+  ul { padding-left: 20px; margin: 6px 0; }
+  li { margin: 3px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+  .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+  .card h4 { font-size: 13px; color: #1e293b; margin-bottom: 4px; }
+  .card p { font-size: 11px; color: #64748b; }
+  .section { page-break-inside: avoid; }
+  .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; }
+  @media print { body { padding: 0; } .cover { page-break-after: always; } }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <h1>🏭 Industrial Belt Monitoring System</h1>
+  <h2>Complete Application Report</h2>
+  <p style="font-size:14px; color:#475569; margin-bottom:30px;">AI-Powered Conveyor Belt Health Monitoring with Real-Time Sensor Fusion</p>
+  <div class="meta">
+    <p><strong>Project:</strong> NMDC Conveyor Belt Monitoring | SIH26008 | Spidy Hackers</p>
+    <p><strong>GitHub:</strong> https://github.com/pugazenthi7076-cell/NMDC-project</p>
+    <p><strong>Live Demo:</strong> https://nmdc-analyzer.vercel.app</p>
+    <p><strong>Report Date:</strong> August 29, 2026</p>
+  </div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<h2>📋 Table of Contents</h2>
+<ol style="font-size:12px; padding-left:20px;">
+  <li>Project Overview</li>
+  <li>Technology Stack</li>
+  <li>Architecture & System Design</li>
+  <li>AI / Analytics & Application Layer (11 Technologies)</li>
+  <li>Cloud & Data Layer</li>
+  <li>Frontend Pages & Features</li>
+  <li>Authentication & Multi-User System</li>
+  <li>Database Schema</li>
+  <li>API Endpoints</li>
+  <li>Docker & Deployment</li>
+  <li>Project File Structure</li>
+</ol>
+
+<!-- 1. PROJECT OVERVIEW -->
+<h2>1. 📌 Project Overview</h2>
+<div class="grid">
+  <div class="card"><h4>Problem</h4><p>Conveyor belt failures in mining cause costly downtime, safety hazards, and production losses. Manual inspections are slow and unreliable.</p></div>
+  <div class="card"><h4>Solution</h4><p>AI-powered real-time monitoring system that combines 7 sensor types, machine learning predictions, computer vision, and automated alerts to predict belt failures before they happen.</p></div>
+  <div class="card"><h4>Target Users</h4><p>Maintenance engineers, operations managers, safety officers at NMDC mining facilities.</p></div>
+  <div class="card"><h4>Key Outcome</h4><p>91.5% failure prediction accuracy, 7 sensor types monitored, 7 defect classes detected, real-time alerts via SMS/Email/Webhook.</p></div>
+</div>
+
+<!-- 2. TECHNOLOGY STACK -->
+<h2>2. 🔧 Technology Stack</h2>
+
+<h3>Frontend</h3>
+<table>
+  <tr><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+  <tr><td><strong>Next.js</strong></td><td>16.3.3</td><td>Full-stack React framework with file-based routing & API routes</td></tr>
+  <tr><td><strong>React</strong></td><td>19.2.8</td><td>Interactive component-based UI</td></tr>
+  <tr><td><strong>TypeScript</strong></td><td>5.x</td><td>Static type safety across all files</td></tr>
+  <tr><td><strong>Tailwind CSS</strong></td><td>4.x</td><td>Utility-first CSS for dark-themed industrial dashboard</td></tr>
+  <tr><td><strong>Recharts</strong></td><td>3.10.1</td><td>Interactive charts (bar, line, radar, gauge)</td></tr>
+  <tr><td><strong>Lucide React</strong></td><td>1.34.0</td><td>Lightweight icon library</td></tr>
+  <tr><td><strong>WebRTC + Canvas API</strong></td><td>Built-in</td><td>Live camera feed with YOLO bounding box overlay</td></tr>
+</table>
+
+<h3>Backend / API</h3>
+<table>
+  <tr><th>Technology</th><th>Language</th><th>Purpose</th></tr>
+  <tr><td><strong>Next.js API Routes</strong></td><td>TypeScript</td><td>RESTful endpoints: login, register, session, alerts, data APIs</td></tr>
+  <tr><td><strong>Flask</strong></td><td>Python 3.12</td><td>ML prediction API (port 5001) with 18+ endpoints</td></tr>
+</table>
+
+<h3>Database</h3>
+<table>
+  <tr><th>Technology</th><th>Purpose</th></tr>
+  <tr><td><strong>MongoDB</strong> (MongoDB Atlas on Vercel)</td><td>Users, sessions, belts, detections, predictions, alerts, analysis records</td></tr>
+  <tr><td><strong>Mongoose 9.9</strong></td><td>ODM for MongoDB schema validation</td></tr>
+</table>
+
+<h3>AI / Machine Learning</h3>
+<table>
+  <tr><th>Technology</th><th>Accuracy</th><th>Purpose</th></tr>
+  <tr><td><strong>XGBoost</strong></td><td>91.5%</td><td>Failure prediction within 30 days, health scoring (0-100)</td></tr>
+  <tr><td><strong>Random Forest</strong></td><td>87%</td><td>Damage classification (7 types), severity (3 levels), remaining life</td></tr>
+  <tr><td><strong>OpenCV</strong></td><td>93%</td><td>Image processing: crack, tear, abrasion, edge damage, misalignment detection</td></tr>
+  <tr><td><strong>YOLOv8</strong></td><td>91%</td><td>Real-time object detection with 7 defect classes + bounding boxes</td></tr>
+  <tr><td><strong>1D-CNN / LSTM</strong></td><td>89%</td><td>Vibration & temperature time-series anomaly detection (FFT analysis)</td></tr>
+  <tr><td><strong>Sensor Fusion</strong></td><td>94%</td><td>Weighted voting + Bayesian fusion of 7 sensor types</td></tr>
+</table>
+
+<h3>IoT & Real-Time Communication</h3>
+<table>
+  <tr><th>Technology</th><th>Purpose</th></tr>
+  <tr><td><strong>MQTT</strong> (Mosquitto)</td><td>Real-time sensor communication from ESP32 IoT devices to cloud</td></tr>
+  <tr><td><strong>MinIO</strong></td><td>S3-compatible object storage for belt images, detection screenshots, reports</td></tr>
+</table>
+
+<h3>DevOps & Deployment</h3>
+<table>
+  <tr><th>Technology</th><th>Purpose</th></tr>
+  <tr><td><strong>Docker</strong></td><td>Multi-stage Dockerfile + docker-compose (7 services)</td></tr>
+  <tr><td><strong>GitHub Actions</strong></td><td>CI/CD: lint, typecheck, Python tests, Docker build, security scan, Vercel deploy</td></tr>
+  <tr><td><strong>Vercel</strong></td><td>Production hosting for Next.js frontend (auto-deploy on push)</td></tr>
+  <tr><td><strong>Grafana</strong></td><td>Monitoring dashboards with Prometheus integration</td></tr>
+  <tr><td><strong>Prometheus</strong></td><td>Metrics collection for ML API and frontend</td></tr>
+</table>
+
+<h3>Alerts & Notifications</h3>
+<table>
+  <tr><th>Channel</th><th>Implementation</th></tr>
+  <tr><td>Email</td><td>SMTP (Gmail/custom) with HTML formatted alerts</td></tr>
+  <tr><td>SMS</td><td>Twilio API integration</td></tr>
+  <tr><td>Webhook</td><td>Slack/Discord/custom webhook with JSON payloads</td></tr>
+  <tr><td>In-App</td><td>Real-time alert notifications in dashboard</td></tr>
+</table>
+
+<!-- 3. ARCHITECTURE -->
+<h2>3. 🏗️ Architecture & System Design</h2>
+<p><strong>High-Level Data Flow:</strong></p>
+<table>
+  <tr><th>Layer</th><th>Components</th><th>Data Flow</th></tr>
+  <tr><td><span class="badge badge-orange">IoT Sensors</span></td><td>ESP32 + 7 sensor types</td><td>Vibration, temperature, motor current, acoustic, load/tension, electromagnetic, camera</td></tr>
+  <tr><td><span class="badge badge-blue">MQTT Broker</span></td><td>Mosquitto (port 1883)</td><td>ESP32 → MQTT topics → ML API subscribes</td></tr>
+  <tr><td><span class="badge badge-green">ML Service</span></td><td>Flask + Python (port 5001)</td><td>XGBoost, RF, OpenCV, YOLO, 1D-CNN/LSTM, Sensor Fusion, Alerts</td></tr>
+  <tr><td><span class="badge badge-purple">Database</span></td><td>MongoDB Atlas</td><td>Users, sessions, belts, detections, predictions, alerts, analysis records</td></tr>
+  <tr><td><span class="badge badge-red">Frontend</span></td><td>Next.js (port 3000)</td><td>Dashboard, belt monitoring, damage detection, ML predictions, analysis, alerts</td></tr>
+  <tr><td><span class="badge badge-orange">Object Storage</span></td><td>MinIO (port 9000)</td><td>Belt images, detection screenshots, PDF reports, system logs</td></tr>
+  <tr><td><span class="badge badge-blue">Monitoring</span></td><td>Grafana + Prometheus</td><td>Real-time metrics dashboards for all services</td></tr>
+</table>
+
+<!-- 4. AI LAYER -->
+<h2>4. 🤖 AI / Analytics & Application Layer</h2>
+
+<h3>4.1 OpenCV — Image Processing</h3>
+<ul>
+  <li><strong>Module:</strong> <code>opencv_processor.py</code> — <code>BeltImageProcessor</code> class</li>
+  <li><strong>Capabilities:</strong> Crack detection (morphological ops), tear detection (contour analysis), surface abrasion (texture variance), edge damage (zone analysis), misalignment (Hough line detection)</li>
+  <li><strong>API:</strong> <code>POST /analyze/image</code>, <code>POST /analyze/frame</code></li>
+</ul>
+
+<h3>4.2 YOLOv8 — Real-Time Object Detection</h3>
+<ul>
+  <li><strong>Module:</strong> <code>yolo_detector.py</code> — <code>BeltYOLODetector</code> class</li>
+  <li><strong>7 Defect Classes:</strong> belt_tear, surface_crack, splice_failure, edge_damage, abrasion, misalignment, foreign_object</li>
+  <li><strong>API:</strong> <code>POST /detect/yolo</code>, <code>GET /detect/yolo/simulate</code></li>
+</ul>
+
+<h3>4.3 XGBoost + Random Forest</h3>
+<ul>
+  <li><strong>Module:</strong> <code>train_models.py</code> — 5 trained models</li>
+  <li><strong>Models:</strong> Failure Predictor (XGBoost, 91.5%), Health Scorer (XGBoost, MAE 7.68%), Damage Classifier (RF, 7 classes), Remaining Life (RF, MAE 2.4 days), Severity Classifier (RF, 3 levels)</li>
+  <li><strong>Training:</strong> 2,000 synthetic samples based on real conveyor belt patterns</li>
+  <li><strong>API:</strong> <code>POST /predict/full</code>, <code>/predict/failure</code>, <code>/predict/health</code></li>
+</ul>
+
+<h3>4.4 1D-CNN / LSTM — Time-Series Anomaly Detection</h3>
+<ul>
+  <li><strong>Module:</strong> <code>deep_learning.py</code> — Vibration, Temperature, Motor Current, Acoustic analyzers</li>
+  <li><strong>Features:</strong> FFT frequency analysis, kurtosis, crest factor, spectral centroid, harmonic distortion, trend detection, statistical process control</li>
+  <li><strong>API:</strong> <code>POST /analyze/vibration</code>, <code>/analyze/temperature</code>, <code>/analyze/motor-current</code>, <code>/analyze/acoustic</code></li>
+</ul>
+
+<h3>4.5 Sensor Fusion</h3>
+<ul>
+  <li><strong>Module:</strong> <code>sensor_fusion.py</code> — <code>SensorFusionEngine</code> class</li>
+  <li><strong>Methods:</strong> Weighted voting (7 sensors × reliability scores), Bayesian fusion (prior/posterior probability), cross-sensor correlation analysis, root cause inference</li>
+  <li><strong>API:</strong> <code>POST /fusion/analyze</code>, <code>/fusion/correlate</code></li>
+</ul>
+
+<h3>4.6 MQTT — Real-Time Sensor Communication</h3>
+<ul>
+  <li><strong>Module:</strong> <code>mqtt_client.py</code> — <code>MQTTManager</code> class</li>
+  <li><strong>Topics:</strong> <code>nmdc/belt/{belt_id}/{sensor_type}</code> for 7 sensor types</li>
+  <li><strong>Features:</strong> Auto-subscribe, history (100 readings/sensor/belt), alert publishing, simulated mode for testing</li>
+  <li><strong>API:</strong> <code>GET /mqtt/status</code>, <code>/mqtt/sensors</code>, <code>POST /mqtt/publish</code>, <code>/mqtt/simulate/{belt_id}</code></li>
+</ul>
+
+<h3>4.7 MinIO — Object Storage</h3>
+<ul>
+  <li><strong>Module:</strong> <code>minio_storage.py</code> — <code>MinIOStorage</code> class</li>
+  <li><strong>4 Buckets:</strong> nmdc-belt-images, nmdc-detections, nmdc-reports, nmdc-logs</li>
+  <li><strong>API:</strong> <code>POST /minio/upload/image</code>, <code>/minio/upload/detection</code>, <code>/minio/upload/report</code>, <code>GET /minio/list/{bucket}</code></li>
+</ul>
+
+<!-- 5. CLOUD & DATA LAYER -->
+<h2>5. ☁️ Cloud & Data Layer</h2>
+<table>
+  <tr><th>Technology</th><th>Used?</th><th>Implementation</th></tr>
+  <tr><td>MQTT (Mosquitto)</td><td><span class="badge badge-green">YES</span></td><td>Real-time ESP32 sensor data via pub/sub</td></tr>
+  <tr><td>InfluxDB / TimescaleDB</td><td><span class="badge badge-red">NO</span></td><td>Using MongoDB instead (time-series via analysis records)</td></tr>
+  <tr><td>MinIO</td><td><span class="badge badge-green">YES</span></td><td>S3-compatible storage for images, reports, logs</td></tr>
+  <tr><td>Python</td><td><span class="badge badge-green">YES</span></td><td>ML pipeline: OpenCV, YOLO, XGBoost, RF, Sensor Fusion</td></tr>
+  <tr><td>Flask</td><td><span class="badge badge-green">YES</span></td><td>REST API with 18+ endpoints for ML predictions</td></tr>
+</table>
+
+<!-- 6. FRONTEND PAGES -->
+<h2>6. 🌐 Frontend Pages & Features</h2>
+<table>
+  <tr><th>Page</th><th>Route</th><th>Features</th></tr>
+  <tr><td><strong>Login</strong></td><td>/login</td><td>User ID + password, show/hide password, error messages</td></tr>
+  <tr><td><strong>Register</strong></td><td>/register</td><td>Multi-field form: name, email, mobile, role, department, designation, password</td></tr>
+  <tr><td><strong>Forgot Password</strong></td><td>/forgot-password</td><td>User ID → new password (no OTP, no approval)</td></tr>
+  <tr><td><strong>Dashboard</strong></td><td>/dashboard</td><td>Stats cards, production chart, belt status pie, damage trends, alerts, uptime comparison</td></tr>
+  <tr><td><strong>Belt Monitoring</strong></td><td>/dashboard/belt-monitoring</td><td>Fleet health rings, per-belt health gauges, component breakdown, grade system (A-F)</td></tr>
+  <tr><td><strong>Damage Detection</strong></td><td>/dashboard/damage-detection</td><td>Live camera YOLO detection, filter by status, detection cards with severity</td></tr>
+  <tr><td><strong>ML Predictions</strong></td><td>/dashboard/ml-predictions</td><td>9 technology cards, Run Full AI Analysis, per-belt ML results + YOLO + Sensor Fusion</td></tr>
+  <tr><td><strong>Predictions</strong></td><td>/dashboard/predictions</td><td>Maintenance scheduling, failure probability, recommended actions</td></tr>
+  <tr><td><strong>Analysis</strong></td><td>/dashboard/thermal-analysis</td><td>8 sensor tabs with specialized charts (FFT, heatmap, waveform, radar, gauge)</td></tr>
+  <tr><td><strong>Alerts</strong></td><td>/dashboard/alerts</td><td>Alert history, severity filtering, acknowledge/resolve actions</td></tr>
+  <tr><td><strong>User Sessions</strong></td><>/dashboard/sessions</td><td>Active session management, role-based access control</td></tr>
+  <tr><td><strong>Settings</strong></td><td>/dashboard/settings</td><td>System configuration, version info (v1.0.0)</td></tr>
+</table>
+
+<!-- 7. AUTH -->
+<h2>7. 🔐 Authentication & Multi-User System</h2>
+<table>
+  <tr><th>Feature</th><th>Implementation</th></tr>
+  <tr><td>User Roles</td><td>Admin (ADM-000x) and Worker (WKR-000x)</td></tr>
+  <tr><td>Registration</td><td>Multi-field form with validation (email, mobile, role, department)</td></tr>
+  <tr><td>Login</td><td>User ID + password, base64 token cookie</td></tr>
+  <tr><td>Session Management</td><td>MongoDB-backed sessions, 5 per user / 50 global max</td></tr>
+  <tr><td>Fallback Auth</td><td>Cookie-based auth when MongoDB is unavailable</td></tr>
+  <tr><td>Auto-Seed</td><td>Default admin (ADM-0001) created on first DB connection</td></tr>
+  <tr><td>Forgot Password</td><td>User ID + new password directly (no OTP, no approval)</td></tr>
+  <tr><td>Multi-User</td><td>Unlimited users, tested with 3+ concurrent accounts</td></tr>
+  <tr><td>Duplicate Detection</td><td>Email and mobile uniqueness enforced with clear error messages</td></tr>
+</table>
+
+<!-- 8. DATABASE -->
+<h2>8. 🗄️ Database Schema (MongoDB)</h2>
+<table>
+  <tr><th>Collection</th><th>Fields</th><th>Purpose</th></tr>
+  <tr><td><strong>users</strong></td><td>id, name, email, mobile, role, department, designation, sectionHead, password, createdAt, isActive</td><td>User accounts and authentication</td></tr>
+  <tr><td><strong>sessions</strong></td><td>sessionId, userId, loginTime, expiry, ip</td><td>Active login sessions</td></tr>
+  <tr><td><strong>belts</strong></td><td>id, name, status, speed, tension, temperature, load, uptime, lastInspection, damageRisk</td><td>Conveyor belt master data</td></tr>
+  <tr><td><strong>detections</strong></td><td>id, beltId, type, severity, confidence, location, timestamp, imageUrl, status</td><td>Damage detection records</td></tr>
+  <tr><td><strong>predictions</strong></td><td>id, beltId, component, predictedFailureDate, confidence, remainingLife, priority, recommendation</td><td>ML maintenance predictions</td></tr>
+  <tr><td><strong>alerts</strong></td><td>id, type, severity, message, timestamp, acknowledged</td><td>System alerts and notifications</td></tr>
+  <tr><td><strong>analysisrecords</strong></td><td>id, beltId, category, component, value, unit, threshold, status, severity, details, recommendation, timestamp</td><td>7-category sensor analysis data</td></tr>
+  <tr><td><strong>thermalreadings</strong></td><td>id, beltId, zone, temperature, anomalyScore, timestamp, status</td><td>Temperature monitoring data</td></tr>
+</table>
+
+<!-- 9. API ENDPOINTS -->
+<h2>9. 🌐 API Endpoints</h2>
+<h3>Next.js API Routes (TypeScript)</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+  <tr><td>POST</td><td>/api/auth/login</td><td>User login with User ID + password</td></tr>
+  <tr><td>POST</td><td>/api/auth/register</td><td>Create new user account</td></tr>
+  <tr><td>GET</td><td>/api/auth/session</td><td>Validate session cookie</td></tr>
+  <tr><td>POST</td><td>/api/auth/logout</td><td>Destroy session</td></tr>
+  <tr><td>POST</td><td>/api/auth/password-reset</td><td>Reset password (User ID + new password)</td></tr>
+  <tr><td>POST</td><td>/api/ml/predict</td><td>Proxy to ML API (all endpoints)</td></tr>
+  <tr><td>GET</td><td>/api/data/belts</td><td>Get all belts from MongoDB</td></tr>
+  <tr><td>GET</td><td>/api/data/detections</td><td>Get damage detections</td></tr>
+  <tr><td>GET</td><td>/api/data/predictions</td><td>Get ML predictions</td></tr>
+  <tr><td>GET</td><td>/api/data/alerts</td><td>Get system alerts</td></tr>
+  <tr><td>GET</td><td>/api/data/analysis</td><td>Get analysis records</td></tr>
+</table>
+
+<h3>Flask ML API (Python, port 5001)</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Technology</th></tr>
+  <tr><td>GET</td><td>/health</td><td>Health check</td></tr>
+  <tr><td>GET</td><td>/models</td><td>List all loaded models</td></tr>
+  <tr><td>POST</td><td>/predict/full</td><td>XGBoost + RF ensemble prediction</td></tr>
+  <tr><td>POST</td><td>/predict/failure</td><td>XGBoost failure probability</td></tr>
+  <tr><td>POST</td><td>/predict/health</td><td>XGBoost health score</td></tr>
+  <tr><td>POST</td><td>/analyze/image</td><td>OpenCV belt image analysis</td></tr>
+  <tr><td>POST</td><td>/detect/yolo</td><td>YOLOv8 defect detection</td></tr>
+  <tr><td>POST</td><td>/analyze/vibration</td><td>1D-CNN vibration anomaly</td></tr>
+  <tr><td>POST</td><td>/analyze/temperature</td><td>LSTM temperature anomaly</td></tr>
+  <tr><td>POST</td><td>/analyze/motor-current</td><td>Motor current analysis</td></tr>
+  <tr><td>POST</td><td>/analyze/acoustic</td><td>Acoustic signal analysis</td></tr>
+  <tr><td>POST</td><td>/fusion/analyze</td><td>Multi-sensor Bayesian fusion</td></tr>
+  <tr><td>POST</td><td>/fusion/correlate</td><td>Cross-sensor correlation</td></tr>
+  <tr><td>GET/POST</td><td>/mqtt/*</td><td>MQTT status, sensors, history, publish</td></tr>
+  <tr><td>GET/POST</td><td>/minio/*</td><td>MinIO upload, list, download, delete</td></tr>
+  <tr><td>POST</td><td>/alerts/check</td><td>Auto-check and generate alerts</td></tr>
+  <tr><td>POST</td><td>/analyze/full</td><td>Complete belt analysis (all modules)</td></tr>
+</table>
+
+<!-- 10. DOCKER -->
+<h2>10. 🐳 Docker & Deployment</h2>
+<h3>docker-compose.yml — 7 Services</h3>
+<table>
+  <tr><th>Service</th><th>Image</th><th>Port</th><th>Purpose</th></tr>
+  <tr><td><strong>mongodb</strong></td><td>mongo:7</td><td>27017</td><td>Primary database</td></tr>
+  <tr><td><strong>ml-api</strong></td><td>Python 3.11 + Flask</td><td>5001</td><td>AI/ML prediction server</td></tr>
+  <tr><td><strong>frontend</strong></td><td>Node.js 20 + Next.js</td><td>3000</td><td>Web dashboard</td></tr>
+  <tr><td><strong>mqtt</strong></td><td>eclipse-mosquitto:2</td><td>1883, 9001</td><td>IoT sensor communication</td></tr>
+  <tr><td><strong>minio</strong></td><td>minio/minio:latest</td><td>9000, 9001</td><td>Object storage (S3-compatible)</td></tr>
+  <tr><td><strong>grafana</strong></td><td>grafana/grafana:latest</td><td>3001</td><td>Monitoring dashboards</td></tr>
+  <tr><td><strong>prometheus</strong></td><td>prom/prometheus:latest</td><td>9090</td><td>Metrics collection</td></tr>
+</table>
+
+<h3>CI/CD Pipeline (GitHub Actions)</h3>
+<table>
+  <tr><th>Job</th><th>Steps</th></tr>
+  <tr><td><strong>Lint & Type Check</strong></td><td>npx tsc --noEmit, npm run lint</td></tr>
+  <tr><td><strong>Python Tests</strong></td><td>Module imports, model training, API health check</td></tr>
+  <tr><td><strong>Docker Build</strong></td><td>Build ML service + frontend images</td></tr>
+  <tr><td><strong>Deploy</strong></td><td>Build + deploy to Vercel (on main branch push)</td></tr>
+  <tr><td><strong>Security Scan</strong></td><td>Trivy vulnerability scanner</td></tr>
+</table>
+
+<!-- 11. FILE STRUCTURE -->
+<h2>11. 📁 Project File Structure</h2>
+<pre style="font-size:10px; background:#f8fafc; padding:15px; border-radius:8px; overflow-x:auto; border:1px solid #e2e8f0;">
+nmdc-analyzer/
+├── src/
+│   ├── app/
+│   │   ├── api/auth/          # Login, Register, Session, Logout, Password Reset
+│   │   ├── api/data/          # Belts, Detections, Predictions, Alerts, Analysis
+│   │   ├── api/ml/            # ML API proxy
+│   │   ├── dashboard/         # Belt Monitoring, Damage Detection, ML Predictions,
+│   │   │   ├── analysis/      #   Analysis, Alerts, Sessions, Settings
+│   │   ├── login/             # Login page
+│   │   ├── register/          # Registration page
+│   │   ├── forgot-password/   # Password reset page
+│   │   ├── layout.tsx         # Root layout with AuthProvider
+│   │   └── page.tsx           # Landing page
+│   ├── components/
+│   │   ├── auth-provider.tsx  # Authentication context
+│   │   ├── sidebar.tsx        # Navigation sidebar
+│   │   └── live-camera.tsx    # WebRTC + YOLO camera component
+│   └── lib/
+│       ├── mongodb.ts         # MongoDB connection (with fallback)
+│       ├── models.ts          # Mongoose schemas (8 models)
+│       ├── types.ts           # TypeScript interfaces
+│       ├── user-store.ts      # User & session management
+│       ├── mock-data.ts       # Demo data for belts, alerts, predictions
+│       └── seed.ts            # Database seeder
+├── ml-service/
+│   ├── app.py                 # Flask API (18+ endpoints)
+│   ├── train_models.py        # XGBoost + RF training script
+│   ├── requirements.txt       # Python dependencies
+│   ├── modules/
+│   │   ├── opencv_processor.py    # OpenCV belt image analysis
+│   │   ├── yolo_detector.py       # YOLOv8 defect detection
+│   │   ├── deep_learning.py       # 1D-CNN/LSTM anomaly detection
+│   │   ├── sensor_fusion.py       # Bayesian sensor fusion
+│   │   ├── alerts.py              # Email/SMS/Webhook alerts
+│   │   ├── mqtt_client.py         # MQTT sensor communication
+│   │   └── minio_storage.py       # MinIO object storage
+│   └── trained_models/        # Pickle files (5 models + encoders)
+├── .github/workflows/ci.yml   # CI/CD pipeline
+├── grafana/                   # Grafana provisioning
+├── prometheus.yml             # Prometheus config
+├── mosquitto.conf             # MQTT broker config
+├── docker-compose.yml         # 7-service orchestration
+├── Dockerfile                 # Multi-stage build
+└── .env.local                 # Environment variables (gitignored)
+</pre>
+
+<!-- SUMMARY -->
+<h2>📊 Technology Summary</h2>
+<table>
+  <tr><th>Category</th><th>Technologies</th><th>Count</th></tr>
+  <tr><td>AI/ML</td><td>XGBoost, Random Forest, OpenCV, YOLOv8, 1D-CNN, LSTM</td><td>6</td></tr>
+  <tr><td>Analytics</td><td>Sensor Fusion (Bayesian), FFT Analysis</td><td>2</td></tr>
+  <tr><td>Frontend</td><td>Next.js, React, TypeScript, Tailwind CSS, Recharts, Lucide</td><td>6</td></tr>
+  <tr><td>Backend</td><td>Flask, Next.js API Routes, REST</td><td>3</td></tr>
+  <tr><td>Database</td><td>MongoDB, Mongoose</td><td>2</td></tr>
+  <tr><td>IoT/Communication</td><td>MQTT (Mosquitto), MinIO</td><td>2</td></tr>
+  <tr><td>DevOps</td><td>Docker, Docker Compose, GitHub Actions, Vercel</td><td>4</td></tr>
+  <tr><td>Monitoring</td><td>Grafana, Prometheus</td><td>2</td></tr>
+  <tr><td>Alerts</td><td>Email (SMTP), SMS (Twilio), Webhook, In-App</td><td>4</td></tr>
+  <tr><td><strong>Total</strong></td><td></td><td><strong>31</strong></td></tr>
+</table>
+
+<div class="footer">
+  <p><strong>Industrial Belt Monitoring System</strong> | NMDC Ltd. | SIH26008 | Spidy Hackers</p>
+  <p>Generated: August 29, 2026 | https://github.com/pugazenthi7076-cell/NMDC-project</p>
+  <p style="margin-top:10px;">🤖 Generated with Codebuff — AI Software Engineering Agent</p>
+</div>
+
+</body>
+</html>

@@ -1,8 +1,12 @@
-# Docker Compose for Industrial Belt Monitoring
-# Full stack: Next.js + ML API + MongoDB + Grafana
+# Docker Compose for Industrial Belt Monitoring - Full Stack
+# 15 Services: Next.js + ML API + FastAPI + MongoDB + Redis + Kafka + Elasticsearch + RabbitMQ + PostgreSQL + Nginx + MQTT + MinIO + Grafana + Prometheus
 
 services:
-  # MongoDB Database
+  # ==========================================
+  # DATABASE LAYER
+  # ==========================================
+
+  # MongoDB - Primary NoSQL Database
   mongodb:
     image: mongo:7
     container_name: nmdc-mongodb
@@ -19,7 +23,123 @@ services:
       timeout: 5s
       retries: 5
 
-  # Python ML API (XGBoost + Random Forest + OpenCV + YOLO + Sensor Fusion)
+  # PostgreSQL - Relational Database (users, roles, audit, maintenance)
+  postgresql:
+    image: postgres:16
+    container_name: nmdc-postgresql
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: nmdc_analytics
+      POSTGRES_USER: nmdc
+      POSTGRES_PASSWORD: nmdc123
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nmdc -d nmdc_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Cache, Sessions, Pub/Sub
+  redis:
+    image: redis:7-alpine
+    container_name: nmdc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # InfluxDB - Time-Series Sensor Data
+  influxdb:
+    image: influxdb:2.7
+    container_name: nmdc-influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: nmdc123
+      DOCKER_INFLUXDB_INIT_ORG: nmdc
+      DOCKER_INFLUXDB_INIT_BUCKET: nmdc-sensors
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: nmdc-influx-token
+    restart: unless-stopped
+
+  # ==========================================
+  # MESSAGE QUEUES & STREAMING
+  # ==========================================
+
+  # Apache Kafka - Event Streaming
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: nmdc-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+    restart: unless-stopped
+
+  # RabbitMQ - Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: nmdc-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # SEARCH & LOGGING
+  # ==========================================
+
+  # Elasticsearch - Full-Text Search & Log Analytics
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: nmdc-elasticsearch
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    restart: unless-stopped
+
+  # ==========================================
+  # API LAYER
+  # ==========================================
+
+  # Python ML API (Flask - XGBoost + RF + OpenCV + YOLO)
   ml-api:
     build:
       context: .
@@ -33,6 +153,12 @@ services:
       - ml_models:/app/ml-service/trained_models
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
+      - REDIS_URL=redis://redis:6379/0
+      - INFLUXDB_URL=http://influxdb:8086
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - RABBITMQ_HOST=rabbitmq
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - POSTGRESQL_URL=postgresql://nmdc:nmdc123@postgresql:5432/nmdc_analytics
       - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
       - MINIO_ENDPOINT=minio:9000
@@ -42,12 +168,37 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 15s
       timeout: 5s
       retries: 3
+
+  # FastAPI (Async API - WebSocket + Real-time)
+  fastapi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-service
+    container_name: nmdc-fastapi
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./ml-service:/app/ml-service
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - INFLUXDB_URL=http://influxdb:8086
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - PYTHONUNBUFFERED=1
+    command: python -c "from modules.fastapi_server import run_fastapi; run_fastapi(5002)"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   # Next.js Frontend
   frontend:
@@ -61,6 +212,7 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/nmdc-analyzer
       - ML_API_URL=http://ml-api:5001
+      - FASTAPI_URL=http://fastapi-api:5002
       - MQTT_BROKER=mqtt
       - MINIO_ENDPOINT=minio:9000
       - NEXT_TELEMETRY_DISABLED=1
@@ -71,7 +223,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # MQTT Broker (Mosquitto) for ESP32 sensor communication
+  # ==========================================
+  # IoT & OBJECT STORAGE
+  # ==========================================
+
+  # MQTT Broker (Mosquitto) - ESP32 Sensor Communication
   mqtt:
     image: eclipse-mosquitto:2
     container_name: nmdc-mqtt
@@ -82,13 +238,8 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
       - mqtt_data:/mosquitto/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
-  # MinIO Object Storage for images, reports, logs
+  # MinIO - Object Storage (images, reports, logs)
   minio:
     image: minio/minio:latest
     container_name: nmdc-minio
@@ -108,7 +259,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # Grafana Dashboards
+  # ==========================================
+  # REVERSE PROXY
+  # ==========================================
+
+  # Nginx - Reverse Proxy & Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: nmdc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - ml-api
+      - fastapi-api
+    restart: unless-stopped
+
+  # ==========================================
+  # MONITORING & VISUALIZATION
+  # ==========================================
+
+  # Grafana - Dashboard Visualization
   grafana:
     image: grafana/grafana:latest
     container_name: nmdc-grafana
@@ -123,7 +297,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     restart: unless-stopped
 
-  # Prometheus Metrics (for Grafana)
+  # Prometheus - Metrics Collection
   prometheus:
     image: prom/prometheus:latest
     container_name: nmdc-prometheus
@@ -133,9 +307,24 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     restart: unless-stopped
 
+# ==========================================
+# VOLUMES
+# ==========================================
 volumes:
   mongodb_data:
+  postgresql_data:
+  redis_data:
+  influxdb_data:
+  rabbitmq_data:
+  elasticsearch_data:
   ml_models:
   grafana_data:
   mqtt_data:
   minio_data:
+
+# ==========================================
+# NETWORKS
+# ==========================================
+networks:
+  default:
+    name: nmdc-network
