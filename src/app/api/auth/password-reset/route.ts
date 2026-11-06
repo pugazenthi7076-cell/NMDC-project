@@ -17,23 +17,29 @@ export async function POST(request: NextRequest) {
 
     const user = await findUserById(userId);
     if (!user) {
-      return NextResponse.json({ error: "User not found with this ID" }, { status: 404 });
+      return NextResponse.json(
+        { error: `User not found with ID "${userId}". Did you mean ADM-0001 or WKR-0001?` },
+        { status: 404 }
+      );
     }
 
     if (!user.isActive) {
       return NextResponse.json({ error: "Account is deactivated. Contact administrator." }, { status: 403 });
     }
 
-    const updated = await updateUserPassword(userId, newPassword);
+    const updated = await updateUserPassword(user.id, newPassword);
     if (!updated) {
-      return NextResponse.json({ error: "Failed to update password" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to update password. Please try again." }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
       message: "Password has been reset successfully",
+      userId: user.id,
     });
-  } catch {
-    return NextResponse.json({ error: "Password reset failed" }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("[PasswordReset] Error:", error);
+    const msg = error instanceof Error ? error.message : "Password reset failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -145,9 +145,12 @@ export default function LoginPage() {
           </form>
 
           {/* Quick Demo Hint */}
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-1">
             <p className="text-xs text-[#737791]">
               Default Demo Login: <strong className="text-[#151d48]">ADM-0001</strong> / <strong className="text-[#151d48]">admin123</strong>
+            </p>
+            <p className="text-[11px] text-[#737791]">
+              Need an account? <Link href="/register" className="text-[#5d5fef] font-bold hover:underline">Register here</Link>
             </p>
           </div>
         </div>

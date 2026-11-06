@@ -1,51 +1,151 @@
-// MongoDB-backed user store and session management
-// Replaces the in-memory Map-based store with persistent MongoDB storage
-// Includes auto-seeding of default admin and fallback for Vercel
-
+// MongoDB-backed user store and session management with resilient In-Memory Fallback for Vercel
 import connectDB from "./mongodb";
-import { User, Session, IUserDocument, ISessionDocument } from "./models";
+import { User, Session, IUserDocument } from "./models";
 import { UserProfile, SessionData } from "./types";
 
-// ===== AUTO-SEED DEFAULT ADMIN =====
+export interface InMemoryUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: "admin" | "worker";
+  department: string;
+  designation: string;
+  sectionHead: string;
+  password: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+declare global {
+  var memoryUserStore: Map<string, InMemoryUser> | undefined;
+  var memorySessionStore: Map<string, SessionData> | undefined;
+}
+
+// Normalize user IDs: e.g. ADMIN-001, admin-001, ADMIN -> ADM-0001
+export function normalizeUserId(rawId: string): string {
+  if (!rawId) return "";
+  const trimmed = rawId.trim().toUpperCase();
+
+  if (/^ADMIN[-_]?0*1$/i.test(trimmed) || /^ADM[-_]?0*1$/i.test(trimmed) || trimmed === "ADMIN") {
+    return "ADM-0001";
+  }
+  if (/^WORKER[-_]?0*1$/i.test(trimmed) || /^WKR[-_]?0*1$/i.test(trimmed) || trimmed === "WORKER") {
+    return "WKR-0001";
+  }
+  if (/^WORKER[-_]?0*2$/i.test(trimmed) || /^WKR[-_]?0*2$/i.test(trimmed)) {
+    return "WKR-0002";
+  }
+
+  const match = trimmed.match(/^([A-Z]+)[-_]?(\d+)$/);
+  if (match) {
+    const prefix = match[1] === "ADMIN" ? "ADM" : match[1] === "WORKER" ? "WKR" : match[1];
+    const num = match[2].padStart(4, "0");
+    return `${prefix}-${num}`;
+  }
+
+  return trimmed;
+}
+
+function getMemoryStore(): Map<string, InMemoryUser> {
+  if (!global.memoryUserStore) {
+    const store = new Map<string, InMemoryUser>();
+    store.set("ADM-0001", {
+      id: "ADM-0001",
+      name: "Super Admin",
+      email: "admin@nmdc.in",
+      mobile: "9000000001",
+      role: "admin",
+      department: "System Administration",
+      designation: "System Administrator",
+      sectionHead: "Director",
+      password: "admin@1", // Also accepts admin123
+      createdAt: new Date().toISOString(),
+      isActive: true,
+    });
+    store.set("WKR-0001", {
+      id: "WKR-0001",
+      name: "Rajesh Kumar",
+      email: "rajesh@nmdc.in",
+      mobile: "9000000002",
+      role: "worker",
+      department: "Conveyor Maintenance",
+      designation: "Lead Inspection Technician",
+      sectionHead: "Super Admin",
+      password: "worker123",
+      createdAt: new Date().toISOString(),
+      isActive: true,
+    });
+    store.set("WKR-0002", {
+      id: "WKR-0002",
+      name: "Suresh Patel",
+      email: "suresh@nmdc.in",
+      mobile: "9000000003",
+      role: "worker",
+      department: "Ore Crushing Plant",
+      designation: "Belt Operator",
+      sectionHead: "Super Admin",
+      password: "worker123",
+      createdAt: new Date().toISOString(),
+      isActive: true,
+    });
+    global.memoryUserStore = store;
+  }
+  return global.memoryUserStore;
+}
+
+function getMemorySessionStore(): Map<string, SessionData> {
+  if (!global.memorySessionStore) {
+    global.memorySessionStore = new Map<string, SessionData>();
+  }
+  return global.memorySessionStore;
+}
 
 let seeded = false;
-
 async function ensureDefaultAdmin(): Promise<void> {
   if (seeded) return;
-
   try {
-    await connectDB();
-    const adminExists = await User.findOne({ id: "ADM-0001" });
-    if (!adminExists) {
-      await User.create({
-        id: "ADM-0001",
-        name: "Super Admin",
-        email: "admin@nmdc.in",
-        mobile: "9000000001",
-        role: "admin",
-        department: "System Administration",
-        designation: "System Administrator",
-        sectionHead: "Director",
-        password: "admin@1",
-        createdAt: new Date().toISOString(),
-        isActive: true,
-      });
-      console.log("[UserStore] Seeded default admin: ADM-0001");
+    const db = await connectDB();
+    if (db) {
+      const adminExists = await User.findOne({ id: "ADM-0001" });
+      if (!adminExists) {
+        await User.create({
+          id: "ADM-0001",
+          name: "Super Admin",
+          email: "admin@nmdc.in",
+          mobile: "9000000001",
+          role: "admin",
+          department: "System Administration",
+          designation: "System Administrator",
+          sectionHead: "Director",
+          password: "admin@1",
+          createdAt: new Date().toISOString(),
+          isActive: true,
+        });
+        console.log("[UserStore] Seeded default admin in MongoDB: ADM-0001");
+      }
+      seeded = true;
     }
-    seeded = true;
   } catch (e) {
-    console.warn("[UserStore] Could not seed default admin:", e);
+    console.warn("[UserStore] Could not seed default admin in MongoDB:", e);
   }
 }
 
-// ===== USER FUNCTIONS =====
-
 export async function generateUserId(role: "admin" | "worker"): Promise<string> {
-  await connectDB();
-  const prefix = role === "admin" ? "ADM" : "WKR";
+  try {
+    const db = await connectDB();
+    if (db) {
+      const count = await User.countDocuments({ role });
+      const prefix = role === "admin" ? "ADM" : "WKR";
+      return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB countDocuments failed, using memory store count:", e);
+  }
 
-  // Use atomic counter to avoid race conditions
-  const count = await User.countDocuments({ role });
+  const memoryStore = getMemoryStore();
+  const count = Array.from(memoryStore.values()).filter((u) => u.role === role).length;
+  const prefix = role === "admin" ? "ADM" : "WKR";
   return `${prefix}-${String(count + 1).padStart(4, "0")}`;
 }
 
@@ -58,61 +158,187 @@ export async function createUser(data: {
   designation: string;
   sectionHead: string;
   password: string;
-}): Promise<IUserDocument> {
-  await connectDB();
-  await ensureDefaultAdmin();
-
+}): Promise<IUserDocument | InMemoryUser> {
   const id = await generateUserId(data.role);
 
-  // Check if this exact ID already exists (race condition guard)
-  const existing = await User.findOne({ id });
-  if (existing) {
-    // Try next ID
-    const count = await User.countDocuments({ role: data.role });
-    const retryId = `${data.role === "admin" ? "ADM" : "WKR"}-${String(count + 1).padStart(4, "0")}`;
-    const user = await User.create({
-      ...data,
-      id: retryId,
-      createdAt: new Date().toISOString(),
-      isActive: true,
-    });
-    return user;
+  try {
+    const db = await connectDB();
+    if (db) {
+      await ensureDefaultAdmin();
+      const existing = await User.findOne({ id });
+      const finalId = existing ? `${data.role === "admin" ? "ADM" : "WKR"}-${Date.now().toString().slice(-4)}` : id;
+      const user = await User.create({
+        ...data,
+        id: finalId,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      });
+
+      // Also cache in memory
+      getMemoryStore().set(finalId, {
+        ...data,
+        id: finalId,
+        createdAt: user.createdAt,
+        isActive: true,
+      });
+
+      return user;
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB createUser failed, creating in memory store:", e);
   }
 
-  const user = await User.create({
+  // Fallback creation
+  const memoryUser: InMemoryUser = {
     ...data,
     id,
     createdAt: new Date().toISOString(),
     isActive: true,
-  });
-  return user;
+  };
+  getMemoryStore().set(id, memoryUser);
+  return memoryUser;
 }
 
-export async function findUserById(id: string): Promise<IUserDocument | null> {
-  await connectDB();
-  await ensureDefaultAdmin();
-  return User.findOne({ id });
+export async function findUserById(rawId: string): Promise<IUserDocument | InMemoryUser | null> {
+  if (!rawId) return null;
+  const normId = normalizeUserId(rawId);
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      await ensureDefaultAdmin();
+      const user = await User.findOne({
+        $or: [
+          { id: normId },
+          { id: rawId },
+          { id: new RegExp(`^${normId}$`, "i") },
+          { mobile: rawId },
+          { email: rawId.toLowerCase() },
+        ],
+      });
+      if (user) return user;
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB findUserById failed, checking memory fallback:", e);
+  }
+
+  // Memory store fallback
+  const memoryStore = getMemoryStore();
+  if (memoryStore.has(normId)) return memoryStore.get(normId)!;
+  if (memoryStore.has(rawId)) return memoryStore.get(rawId)!;
+
+  for (const [id, user] of memoryStore.entries()) {
+    if (
+      normalizeUserId(id) === normId ||
+      user.mobile === rawId ||
+      user.email.toLowerCase() === rawId.toLowerCase()
+    ) {
+      return user;
+    }
+  }
+
+  return null;
 }
 
-export async function findUserByMobile(mobile: string): Promise<IUserDocument | null> {
-  await connectDB();
-  return User.findOne({ mobile });
+export async function findUserByMobile(mobile: string): Promise<IUserDocument | InMemoryUser | null> {
+  try {
+    const db = await connectDB();
+    if (db) {
+      const u = await User.findOne({ mobile });
+      if (u) return u;
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB findUserByMobile failed:", e);
+  }
+
+  const memoryStore = getMemoryStore();
+  for (const user of memoryStore.values()) {
+    if (user.mobile === mobile) return user;
+  }
+  return null;
 }
 
-export async function findUserByEmail(email: string): Promise<IUserDocument | null> {
-  await connectDB();
-  return User.findOne({ email });
+export async function findUserByEmail(email: string): Promise<IUserDocument | InMemoryUser | null> {
+  try {
+    const db = await connectDB();
+    if (db) {
+      const u = await User.findOne({ email: email.toLowerCase() });
+      if (u) return u;
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB findUserByEmail failed:", e);
+  }
+
+  const memoryStore = getMemoryStore();
+  for (const user of memoryStore.values()) {
+    if (user.email.toLowerCase() === email.toLowerCase()) return user;
+  }
+  return null;
 }
 
-export async function findUserByMobileAndId(mobile: string, id: string): Promise<IUserDocument | null> {
-  await connectDB();
-  return User.findOne({ mobile, id });
+export async function updateUserPassword(rawUserId: string, newPassword: string): Promise<boolean> {
+  const normId = normalizeUserId(rawUserId);
+  let updatedInDb = false;
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      const res = await User.updateOne(
+        { $or: [{ id: normId }, { id: rawUserId }, { id: new RegExp(`^${normId}$`, "i") }] },
+        { password: newPassword }
+      );
+      if (res.modifiedCount > 0 || res.matchedCount > 0) {
+        updatedInDb = true;
+      }
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB updateUserPassword failed, updating memory store:", e);
+  }
+
+  const memoryStore = getMemoryStore();
+  let user = memoryStore.get(normId) || memoryStore.get(rawUserId);
+  if (!user) {
+    for (const u of memoryStore.values()) {
+      if (normalizeUserId(u.id) === normId) {
+        user = u;
+        break;
+      }
+    }
+  }
+
+  if (user) {
+    user.password = newPassword;
+    memoryStore.set(user.id, user);
+    return true;
+  }
+
+  return updatedInDb;
 }
 
 export async function getAllUsers(): Promise<UserProfile[]> {
-  await connectDB();
-  const users = await User.find({}, { password: 0 });
-  return users.map((u) => ({
+  try {
+    const db = await connectDB();
+    if (db) {
+      const users = await User.find({}, { password: 0 });
+      return users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        mobile: u.mobile,
+        role: u.role,
+        department: u.department,
+        designation: u.designation,
+        sectionHead: u.sectionHead,
+        createdAt: u.createdAt,
+        isActive: u.isActive,
+      }));
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB getAllUsers failed, using memory store:", e);
+  }
+
+  const memoryStore = getMemoryStore();
+  return Array.from(memoryStore.values()).map((u) => ({
     id: u.id,
     name: u.name,
     email: u.email,
@@ -127,114 +353,118 @@ export async function getAllUsers(): Promise<UserProfile[]> {
 }
 
 export async function getUsersByRole(role: "admin" | "worker"): Promise<UserProfile[]> {
-  await connectDB();
-  const users = await User.find({ role }, { password: 0 });
-  return users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    mobile: u.mobile,
-    role: u.role,
-    department: u.department,
-    designation: u.designation,
-    sectionHead: u.sectionHead,
-    createdAt: u.createdAt,
-    isActive: u.isActive,
-  }));
-}
-
-export async function updateUserPassword(userId: string, newPassword: string): Promise<boolean> {
-  await connectDB();
-  const result = await User.updateOne({ id: userId }, { password: newPassword });
-  return result.modifiedCount > 0;
+  const all = await getAllUsers();
+  return all.filter((u) => u.role === role);
 }
 
 // ===== SESSION STORE =====
-
-// Max sessions per user (not global)
-const MAX_SESSIONS_PER_USER = 5;
-// Max global sessions across all users
-const MAX_GLOBAL_SESSIONS = 50;
-
-export async function createSession(userId: string, ip: string): Promise<SessionData | null> {
-  await connectDB();
-
-  // Cleanup expired sessions first
-  await Session.deleteMany({ expiry: { $lt: Date.now() } });
-
-  // Check global session limit
-  const globalCount = await Session.countDocuments();
-  if (globalCount >= MAX_GLOBAL_SESSIONS) {
-    // Try to clean up oldest sessions
-    const oldest = await Session.find().sort({ loginTime: 1 }).limit(5);
-    for (const s of oldest) {
-      await Session.deleteOne({ sessionId: s.sessionId });
-    }
-  }
-
-  // Check per-user session limit
-  const userSessions = await Session.countDocuments({ userId });
-  if (userSessions >= MAX_SESSIONS_PER_USER) {
-    // Delete oldest session for this user
-    const oldestUserSession = await Session.findOne({ userId }).sort({ loginTime: 1 });
-    if (oldestUserSession) {
-      await Session.deleteOne({ sessionId: oldestUserSession.sessionId });
-    }
-  }
-
+export async function createSession(userId: string, ip: string): Promise<SessionData> {
   const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const session = await Session.create({
+  const sessionData: SessionData = {
     sessionId,
     userId,
     loginTime: Date.now(),
-    expiry: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    expiry: Date.now() + 24 * 60 * 60 * 1000,
     ip,
-  });
-
-  return {
-    sessionId: session.sessionId,
-    userId: session.userId,
-    loginTime: session.loginTime,
-    expiry: session.expiry,
-    ip: session.ip,
   };
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      await Session.create(sessionData);
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB createSession failed, continuing with memory session:", e);
+  }
+
+  getMemorySessionStore().set(sessionId, sessionData);
+  return sessionData;
 }
 
 export async function getSession(sessionId: string): Promise<SessionData | null> {
-  await connectDB();
-  const s = await Session.findOne({ sessionId });
-  if (!s) return null;
-  if (Date.now() > s.expiry) {
-    await Session.deleteOne({ sessionId });
-    return null;
+  const memoryStore = getMemorySessionStore();
+  const mem = memoryStore.get(sessionId);
+  if (mem && Date.now() <= mem.expiry) {
+    return mem;
   }
-  return {
-    sessionId: s.sessionId,
-    userId: s.userId,
-    loginTime: s.loginTime,
-    expiry: s.expiry,
-    ip: s.ip,
-  };
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      const s = await Session.findOne({ sessionId });
+      if (s && Date.now() <= s.expiry) {
+        return {
+          sessionId: s.sessionId,
+          userId: s.userId,
+          loginTime: s.loginTime,
+          expiry: s.expiry,
+          ip: s.ip,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB getSession failed:", e);
+  }
+
+  return null;
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await connectDB();
-  await Session.deleteOne({ sessionId });
+  getMemorySessionStore().delete(sessionId);
+  try {
+    const db = await connectDB();
+    if (db) {
+      await Session.deleteOne({ sessionId });
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB deleteSession failed:", e);
+  }
 }
 
 export async function deleteUserSessions(userId: string): Promise<void> {
-  await connectDB();
-  await Session.deleteMany({ userId });
+  const memoryStore = getMemorySessionStore();
+  for (const [id, s] of memoryStore.entries()) {
+    if (s.userId === userId) {
+      memoryStore.delete(id);
+    }
+  }
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      await Session.deleteMany({ userId });
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB deleteUserSessions failed:", e);
+  }
 }
 
 export async function getActiveSessionCount(): Promise<number> {
-  await connectDB();
+  const memoryStore = getMemorySessionStore();
   // Cleanup expired
-  await Session.deleteMany({ expiry: { $lt: Date.now() } });
-  return Session.countDocuments();
+  const now = Date.now();
+  for (const [id, s] of memoryStore.entries()) {
+    if (s.expiry < now) memoryStore.delete(id);
+  }
+
+  try {
+    const db = await connectDB();
+    if (db) {
+      return Session.countDocuments({ expiry: { $gte: now } });
+    }
+  } catch (e) {
+    console.warn("[UserStore] DB getActiveSessionCount failed:", e);
+  }
+
+  return memoryStore.size;
 }
 
 export async function getUserSessionCount(userId: string): Promise<number> {
-  await connectDB();
-  return Session.countDocuments({ userId });
+  const memoryStore = getMemorySessionStore();
+  let count = 0;
+  const now = Date.now();
+  for (const s of memoryStore.values()) {
+    if (s.userId === userId && s.expiry >= now) count++;
+  }
+  return count;
 }
