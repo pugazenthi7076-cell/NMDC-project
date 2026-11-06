@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { Shield } from "lucide-react";
+import { Zap } from "lucide-react";
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -16,13 +16,13 @@ export default function Home() {
   }, [isAuthenticated, isLoading, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+    <div className="min-h-screen flex items-center justify-center bg-[#f0f7f4]">
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--primary)] flex items-center justify-center">
-          <Shield className="w-10 h-10 text-[var(--primary-foreground)]" />
+        <div className="w-16 h-16 mx-auto mb-4 rounded-3xl bg-gradient-to-tr from-[#5d5fef] to-[#8284ff] flex items-center justify-center text-white shadow-xl shadow-[#5d5fef]/30 animate-pulse">
+          <Zap className="w-8 h-8 fill-white text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-[var(--primary)]">Industrial Belt Monitoring</h1>
-        <p className="text-[var(--muted-foreground)] mt-2">Loading...</p>
+        <h1 className="text-2xl font-extrabold text-[#151d48]">NMDC Pulse</h1>
+        <p className="text-xs font-semibold text-[#737791] mt-1">Conveyor Belt Intelligence</p>
       </div>
     </div>
   );
