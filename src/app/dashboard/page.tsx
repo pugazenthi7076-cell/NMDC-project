@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   BarChart,
@@ -27,8 +27,18 @@ import {
   MapPin,
   ChevronRight,
   ExternalLink,
+  CheckCircle,
+  FileSpreadsheet,
+  FileJson,
+  Users,
 } from "lucide-react";
 import { mockDashboardStats, mockBelts, mockAlerts } from "@/lib/mock-data";
+import {
+  exportSensorRecordsCSV,
+  exportAnalysisRecordsCSV,
+  exportSeniorStaffRecordsCSV,
+  exportFullTelemetryJSON,
+} from "@/lib/export-records";
 
 // 1. Data for Visitor Insights / Vibration Insights
 const vibrationInsightData = [
@@ -92,16 +102,44 @@ const motorLoadData = [
 export default function DashboardPage() {
   const stats = mockDashboardStats;
   const [activeRange, setActiveRange] = useState("Weekly");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const triggerExport = (fn: () => string, label: string) => {
+    setExportOpen(false);
+    const filename = fn();
+    setToastMessage(`Exported ${label} (${filename})`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-8">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-[#dcfce7] border border-[#22c55e]/30 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-bold text-[#15803d] animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <CheckCircle className="w-5 h-5 text-[#22c55e] flex-shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* ========================================================
           ROW 1: Today's Operations (4 Pastel Cards) + Vibration Insights
          ======================================================== */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Left 7 Columns: Today's Operations (Figma "Today's Sales") */}
         <div className="xl:col-span-7 bg-white rounded-3xl p-6 lg:p-7 border border-[#f1f5f9] card-shadow flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 relative">
             <div>
               <h2 className="text-xl font-extrabold text-[#151d48] tracking-tight">
                 Today&apos;s Operations
@@ -110,13 +148,71 @@ export default function DashboardPage() {
                 Conveyor Haulage & Edge Sensor Summary
               </p>
             </div>
-            <button
-              onClick={() => alert("Exporting NMDC Conveyor Operations Telemetry...")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#151d48] hover:bg-slate-50 transition-colors shadow-2xs"
-            >
-              <Download className="w-3.5 h-3.5 text-[#737791]" />
-              <span>Export</span>
-            </button>
+
+            {/* Interactive Export Dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setExportOpen(!exportOpen)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#151d48] hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-[#5d5fef]" />
+                <span>Export Records</span>
+              </button>
+
+              {exportOpen && (
+                <div className="absolute top-full mt-2 right-0 w-72 bg-white border border-slate-100 rounded-3xl shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase text-[#737791]">
+                    Export Data Records
+                  </div>
+
+                  <button
+                    onClick={() => triggerExport(exportSensorRecordsCSV, "Conveyor Sensor Records")}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl hover:bg-slate-50 text-[#151d48] font-semibold text-left transition-colors cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-[#22c55e]" />
+                    <div>
+                      <div>Conveyor Sensors (CSV)</div>
+                      <div className="text-[10px] text-[#737791] font-normal">8 belt speeds, tensions, uptime</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerExport(exportAnalysisRecordsCSV, "Multi-Sensor Diagnostics")}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl hover:bg-slate-50 text-[#151d48] font-semibold text-left transition-colors cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-[#fa5a7d]" />
+                    <div>
+                      <div>Sensor Diagnostics Logs (CSV)</div>
+                      <div className="text-[10px] text-[#737791] font-normal">Vibration, thermal, motor current</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => triggerExport(exportSeniorStaffRecordsCSV, "Senior Staff Records")}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl hover:bg-slate-50 text-[#151d48] font-semibold text-left transition-colors cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-[#bf83ff]" />
+                    <div>
+                      <div>Senior Staff & Personnel (CSV)</div>
+                      <div className="text-[10px] text-[#737791] font-normal">Administrators & section heads</div>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100" />
+
+                  <button
+                    onClick={() => triggerExport(exportFullTelemetryJSON, "Full System Backup")}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl hover:bg-slate-50 text-[#151d48] font-semibold text-left transition-colors cursor-pointer"
+                  >
+                    <FileJson className="w-4 h-4 text-[#ff947a]" />
+                    <div>
+                      <div>Full Telemetry Snapshot (JSON)</div>
+                      <div className="text-[10px] text-[#737791] font-normal">Complete system backup file</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 4 Pastel Cards (Figma Dabang Style) */}

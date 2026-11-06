@@ -1,7 +1,8 @@
 "use client";
 
-import { Activity, Gauge, Thermometer, Truck, Clock, TrendingUp, Shield, AlertTriangle, Heart } from "lucide-react";
+import { Activity, Gauge, Thermometer, Truck, Clock, TrendingUp, Shield, AlertTriangle, Heart, Download } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { exportSensorRecordsCSV } from "@/lib/export-records";
 
 interface Belt {
   id: string;
@@ -242,13 +243,22 @@ export default function BeltMonitoringPage() {
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap">
-        {["all", "operational", "warning", "critical", "offline"].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--card)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-            {f !== "all" && <span className="ml-2 text-xs opacity-70">{belts.filter((b) => b.status === f).length}</span>}
-          </button>
-        ))}
+      <div className="flex gap-2 flex-wrap items-center justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {["all", "operational", "warning", "critical", "offline"].map((f) => (
+            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--card)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}>
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f !== "all" && <span className="ml-2 text-xs opacity-70">{belts.filter((b) => b.status === f).length}</span>}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => exportSensorRecordsCSV(belts.length > 0 ? belts : undefined)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-[#151d48] hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+        >
+          <Download className="w-4 h-4 text-[#5d5fef]" />
+          <span>Export Sensor Records (CSV)</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
